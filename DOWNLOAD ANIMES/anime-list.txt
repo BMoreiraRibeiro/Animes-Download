@@ -1,0 +1,7 @@
+# Lista de Animes para Download
+# Adicione um nome de anime por linha
+# Linhas que começam com # são comentários e serão ignoradas
+
+re-zero-kara-hajimeru-isekai-seikatsu-3rd-season | SD | 14
+Wind Breaker Season 2 | SD | 1
+Isshun de Chiryou shiteita noni Yakutatazu to Tsuihou sareta Tensai Chiyushi, Yami Healer toshite Tanoshiku Ikiru | SD | 1
