@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anime Downloader</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">Anime Downloader</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" id="home-link">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="settings-link">Configurações</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="status-link">Status</a>
+                    </li>
+                </ul>
+                <div>
+                    <button class="btn btn-primary" id="download-all-btn">
+                        <i class="bi bi-download"></i> Baixar Tudo
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Home View -->
+        <div id="home-view">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Lista de Animes</h2>
+                <button class="btn btn-success" id="add-anime-btn">
+                    <i class="bi bi-plus-circle"></i> Adicionar Anime
+                </button>
+            </div>
+            <div class="row" id="anime-list">
+                <p class="text-center">Carregando animes...</p>
+            </div>
+        </div>
+
+        <!-- Settings View -->
+        <div id="settings-view" style="display: none;">
+            <h2>Configurações</h2>
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form id="settings-form">
+                        <div class="mb-3">
+                            <label for="default-quality" class="form-label">Qualidade Padrão</label>
+                            <select class="form-select" id="default-quality">
+                                <option value="HD">HD</option>
+                                <option value="SD">SD</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="start-episode" class="form-label">Episódio Inicial Padrão</label>
+                            <input type="number" class="form-control" id="start-episode" min="1" value="1">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Salvar Configurações</button>
+                    </form>
+                </div>
+            </div>
+            
+            <h3>Pasta de Downloads</h3>
+            <div class="card">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="download-folder" class="form-label">Local dos Downloads</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="download-folder" readonly>
+                            <button class="btn btn-outline-secondary" type="button" id="browse-folder-btn">
+                                <i class="bi bi-folder"></i> Procurar
+                            </button>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="save-folder-btn">
+                        <i class="bi bi-save"></i> Salvar Local
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Status View -->
+        <div id="status-view" style="display: none;">
+            <h2>Status dos Downloads</h2>
+            
+            <!-- Download atual -->
+            <div class="card mb-4" id="current-download-card" style="display: none;">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Download em Andamento</h5>
+                </div>
+                <div class="card-body" id="current-download-body">
+                    <h5 id="current-anime-title">Carregando...</h5>
+                    <div class="progress mb-3">
+                        <div class="progress-bar" id="current-progress" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
+                    </div>
+                    <p id="current-anime-details">Carregando detalhes...</p>
+                </div>
+            </div>
+            
+            <!-- Fila de downloads -->
+            <div class="card mb-4" id="queue-card" style="display: none;">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">Fila de Downloads</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group" id="queue-list">
+                        <li class="list-group-item">Carregando fila...</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Downloads concluídos -->
+            <div class="card" id="completed-card" style="display: none;">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Downloads Concluídos</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group" id="completed-list">
+                        <li class="list-group-item">Carregando histórico...</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Nenhum download -->
+            <div class="alert alert-info" id="no-downloads-alert" style="display: none;">
+                Nenhum download em andamento ou na fila. Adicione animes à lista e inicie os downloads.
+            </div>
+        </div>
+
+        <!-- Add/Edit Anime Modal -->
+        <div class="modal fade" id="anime-modal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="anime-modal-title">Adicionar Anime</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="anime-form">
+                            <input type="hidden" id="anime-id">
+                            <div class="mb-3">
+                                <label for="anime-title" class="form-label">Nome do Anime</label>
+                                <input type="text" class="form-control" id="anime-title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="anime-quality" class="form-label">Qualidade</label>
+                                <select class="form-select" id="anime-quality">
+                                    <option value="HD">HD</option>
+                                    <option value="SD">SD</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="anime-start-episode" class="form-label">Episódio Inicial</label>
+                                <input type="number" class="form-control" id="anime-start-episode" min="1" value="1">
+                            </div>
+                            <div class="mb-3">
+                                <label for="anime-url" class="form-label">URL do Anime</label>
+                                <input type="url" class="form-control" id="anime-url" 
+                                    placeholder="https://animefire.plus/animes/nome-do-anime-todos-os-episodios">
+                                <div class="form-text">Link direto para a página do anime no AnimeFirePlus.</div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="save-anime-btn">Salvar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Episode List Modal -->
+        <div class="modal fade" id="episodes-modal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="episodes-modal-title">Episódios</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="episodes-list" class="list-group">
+                            <p class="text-center">Nenhum episódio disponível</p>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Folder Browser Modal -->
+        <div class="modal fade" id="folder-browser-modal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Selecionar Pasta de Downloads</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb" id="folder-breadcrumb">
+                                <li class="breadcrumb-item"><a href="#" data-path="/">Início</a></li>
+                            </ol>
+                        </nav>
+                        
+                        <div class="list-group" id="folder-list">
+                            <a href="#" class="list-group-item list-group-item-action">
+                                Carregando...
+                            </a>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="select-folder-btn">Selecionar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css"></script>
+    <script src="app.js"></script>
+</body>
+</html>
