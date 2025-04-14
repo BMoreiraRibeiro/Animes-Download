@@ -106,6 +106,39 @@ function cleanup() {
     process.exit(1);
 }
 
+// Função para verificar se o download foi cancelado
+function checkIfCancelled() {
+    const cancelSignalFile = path.join(__dirname, 'cancel-download.signal');
+    if (fs.existsSync(cancelSignalFile)) {
+        console.log('\nDownload cancellation requested. Terminating...');
+        
+        try {
+            // Try to delete the signal file
+            fs.unlinkSync(cancelSignalFile);
+        } catch (err) {
+            // Ignore errors when deleting signal file
+        }
+        
+        // Update status before exiting
+        if (downloadStatus.current) {
+            downloadStatus.current.status = 'cancelled';
+            downloadStatus.current.endTime = new Date().toISOString();
+            downloadStatus.current.errorMessage = 'Download was cancelled by user';
+            
+            downloadStatus.completed.unshift({
+                ...downloadStatus.current
+            });
+            
+            downloadStatus.current = null;
+            saveDownloadStatus();
+        }
+        
+        process.exit(1);
+        return true;
+    }
+    return false;
+}
+
 // Função para normalizar nomes de animes para pesquisa e armazenamento
 function normalizeAnimeNameForSearch(name) {
     return name
@@ -190,6 +223,9 @@ async function main() {
         
         // Processar cada anime da lista
         for (const [index, animeEntry] of animeEntries.entries()) {
+            // Check for cancellation before processing each anime
+            if (checkIfCancelled()) break;
+
             console.log(`\n[${index + 1}/${animeEntries.length}] Processando: ${animeEntry.name.replace(/-/g, ' ')}`);
             console.log(`- Qualidade selecionada: ${animeEntry.quality}`);
             console.log(`- Começando do episódio: ${animeEntry.startEpisode}`);
@@ -345,6 +381,9 @@ async function processAnime(animeEntry) {
         
         // Download de cada episódio
         for (const [index, episode] of filteredEpisodes.entries()) {
+            // Check for cancellation before each episode
+            if (checkIfCancelled()) break;
+
             // Extrair o número do episódio do título ou da URL
             const episodeNumber = extractEpisodeNumber(episode.title, episode.url);
             
@@ -880,6 +919,11 @@ function downloadFile(url, destination, animeName) {
                                     saveDownloadStatus();
                                 }
                             }
+                            
+                            // Check for cancellation every 5% progress
+                            if (checkIfCancelled()) {
+                                cleanupAndReject(new Error('Download cancelled by user'));
+                            }
                         }
                     }
                 });
@@ -908,6 +952,19 @@ function downloadFile(url, destination, animeName) {
             currentRequest.setTimeout(60000, () => {
                 currentRequest.destroy();
                 cleanupAndReject(new Error('Timeout na requisição de download'));
+            });
+            
+            // Add a timeout to check for cancellation periodically
+            const cancellationCheck = setInterval(() => {
+                if (checkIfCancelled()) {
+                    clearInterval(cancellationCheck);
+                    currentRequest.abort(); // Abort the HTTP request
+                    cleanupAndReject(new Error('Download cancelled by user'));
+                }
+            }, 1000); // Check every second
+            
+            currentRequest.on('close', () => {
+                clearInterval(cancellationCheck);
             });
         } catch (error) {
             cleanupAndReject(error);

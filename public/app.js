@@ -493,24 +493,45 @@ function handleAnimeAction(event) {
 function openAnimeModal(anime = null) {
     isEditing = !!anime;
     animeModalTitle.textContent = isEditing ? 'Editar Anime' : 'Adicionar Anime';
+    animeForm.reset();
     
-    if (isEditing) {
+    // Get hint elements
+    const editModeHints = document.querySelectorAll('.edit-mode-hint');
+    
+    if (anime) {
+        // When editing, fill in values
         animeIdInput.value = anime.id;
-        // Usar displayTitle (sem hífens) para exibição no campo de edição
-        animeTitleInput.value = anime.displayTitle || anime.title.replace(/-/g, ' ');
+        animeTitleInput.value = anime.title;
         animeQualitySelect.value = anime.quality;
         animeStartEpisodeInput.value = anime.startEpisode;
-        animeUrlInput.value = anime.animeUrl || ''; // Set URL if it exists
+        animeUrlInput.value = anime.animeUrl || '';
+        
+        // Disable title and URL fields when editing
+        animeTitleInput.disabled = true;
+        animeUrlInput.disabled = true;
+        
+        // Show hints when in edit mode
+        editModeHints.forEach(hint => {
+            hint.style.display = 'block';
+        });
     } else {
-        animeForm.reset();
-        animeIdInput.value = '';
-        // Set default values from config
-        animeQualitySelect.value = config.defaultQuality || 'HD';
-        animeStartEpisodeInput.value = config.startFromEpisode || 1;
-        animeUrlInput.value = ''; // Clear URL field
+        // When adding new, enable all fields
+        animeTitleInput.disabled = false;
+        animeUrlInput.disabled = false;
+        
+        // Hide hints when in add mode
+        editModeHints.forEach(hint => {
+            hint.style.display = 'none';
+        });
     }
     
     animeModal.show();
+}
+
+// Add this validation function
+function validateAnimeTitle(title) {
+    const invalidChars = /[?:<>|\\/*"]/;
+    return !invalidChars.test(title);
 }
 
 // Save anime
@@ -527,39 +548,56 @@ async function saveAnime() {
             return;
         }
         
-        // Verificar se o nome ou URL já existem no arquivo anime-list.txt
-        const checkResponse = await fetch('/api/check-anime-duplicate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: animeTitle, url: animeUrl })
-        });
-        
-        const checkResult = await checkResponse.json();
-        
-        if (checkResult.duplicate) {
-            let message = 'Este anime já existe na lista: ';
-            if (checkResult.duplicateType === 'title') {
-                message += `nome "${animeTitle}" já está cadastrado.`;
-            } else if (checkResult.duplicateType === 'url') {
-                message += `URL já está cadastrada para "${checkResult.existingTitle}".`;
-            }
-            showAlert(message, 'warning');
+        // Validate the anime title before saving
+        if (!validateAnimeTitle(animeTitle)) {
+            showAlert('O título do anime não pode conter os caracteres: ? : < > | \\ / * " ', 'danger');
             return;
+        }
+        
+        // Only check for duplicates when adding new anime, not when editing
+        if (!isEditing) {
+            // Verificar se o nome ou URL já existem no arquivo anime-list.txt
+            const checkResponse = await fetch('/api/check-anime-duplicate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title: animeTitle, url: animeUrl })
+            });
+            
+            const checkResult = await checkResponse.json();
+            
+            if (checkResult.duplicate) {
+                let message = 'Este anime já existe na lista: ';
+                if (checkResult.duplicateType === 'title') {
+                    message += `nome "${animeTitle}" já está cadastrado.`;
+                } else if (checkResult.duplicateType === 'url') {
+                    message += `URL já está cadastrada para "${checkResult.existingTitle}".`;
+                }
+                showAlert(message, 'warning');
+                return;
+            }
         }
         
         // Dados verificados, continuar com o salvamento
         const method = isEditing ? 'PUT' : 'POST';
         const url = isEditing ? `${ANIMES_URL}/${animeId}` : ANIMES_URL;
         
+        // When editing, we only update quality and startEpisode
+        const requestBody = isEditing ? {
+            title: animeTitle, // Keep the same title
+            quality: animeQuality,
+            startEpisode: animeStartEpisode
+            // URL is intentionally omitted to keep the existing one
+        } : {
+            title: animeTitle,
+            quality: animeQuality,
+            startEpisode: animeStartEpisode,
+            animeUrl: animeUrl
+        };
+        
         const response = await fetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: animeTitle,
-                quality: animeQuality,
-                startEpisode: animeStartEpisode,
-                animeUrl: animeUrl
-            })
+            body: JSON.stringify(requestBody)
         });
         
         if (!response.ok) {
@@ -893,29 +931,64 @@ function showAlert(message, type = 'info') {
 
 // Função para cancelar o download atual
 async function cancelCurrentDownload() {
-    if (!confirm('Tem certeza que deseja cancelar o download atual?')) {
+    if (!confirm('Tem certeza que deseja cancelar o download atual? O servidor será reiniciado.')) {
         return;
     }
     
     try {
-        const response = await fetch(`${API_URL}/cancel-download`, {
-            method: 'POST'
+        // Display canceling message
+        showAlert('Cancelando download e reiniciando servidor...', 'warning');
+        
+        // Use the force-cancel endpoint
+        const response = await fetch(`${API_URL}/cancel-download/force`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
         });
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.message || 'Erro ao cancelar download');
-        }
+        // Server will restart, so we need to handle reconnection
+        mainProgressCard.style.display = 'none';
         
-        const result = await response.json();
-        showAlert(result.message, 'info');
+        // Show waiting message to user
+        showAlert('Servidor reiniciando... aguarde alguns segundos', 'info');
         
-        // Atualizar o status imediatamente para refletir o cancelamento
-        loadDownloadStatus();
+        // Try to reconnect after a few seconds
+        setTimeout(() => {
+            checkServerAndReconnect();
+        }, 3000);
     } catch (error) {
-        console.error('Erro ao cancelar download:', error);
-        showAlert(`Erro ao cancelar download: ${error.message}`, 'danger');
+        console.error('Error cancelling download:', error);
+        showAlert('Erro ao cancelar download. Servidor reiniciando...', 'danger');
+        
+        // Still try to reconnect even if there was an error
+        setTimeout(() => {
+            checkServerAndReconnect();
+        }, 3000);
     }
+}
+
+// Add a function to check server and reconnect
+function checkServerAndReconnect(attempts = 1) {
+    if (attempts > 20) { // Maximum 20 attempts (1 minute)
+        showAlert('Não foi possível reconectar ao servidor. Por favor, recarregue a página.', 'danger');
+        return;
+    }
+    
+    // Try to fetch status to check if server is back
+    fetch(`${API_URL}/status`, { method: 'GET' })
+        .then(response => {
+            if (response.ok) {
+                showAlert('Servidor reiniciado com sucesso! Reconectado.', 'success');
+                loadAnimes(); // Reload animes
+                loadDownloadStatus(); // Reload download status
+            } else {
+                // Try again after 3 seconds
+                setTimeout(() => checkServerAndReconnect(attempts + 1), 3000);
+            }
+        })
+        .catch(() => {
+            // Server not ready yet, try again
+            setTimeout(() => checkServerAndReconnect(attempts + 1), 3000);
+        });
 }
 
 // Event listeners
@@ -935,6 +1008,40 @@ document.addEventListener('DOMContentLoaded', () => {
     goUpDirectoryBtn.addEventListener('click', goUpDirectory);
     
     cancelDownloadBtn.addEventListener('click', cancelCurrentDownload);
+    
+    // Add real-time validation for the anime title input
+    animeTitleInput.addEventListener('input', function() {
+        const invalidChars = /[?:<>|\\/*"]/;
+        const titleValue = this.value;
+        
+        if (invalidChars.test(titleValue)) {
+            this.classList.add('is-invalid');
+            
+            // Find or create validation feedback element
+            let feedbackElement = this.nextElementSibling;
+            if (!feedbackElement || !feedbackElement.classList.contains('invalid-feedback')) {
+                feedbackElement = document.createElement('div');
+                feedbackElement.className = 'invalid-feedback';
+                this.parentNode.insertBefore(feedbackElement, this.nextSibling);
+            }
+            
+            feedbackElement.textContent = 'O título não pode conter os caracteres: ? : < > | \\ / * " ';
+            
+            // Disable the save button
+            saveAnimeBtn.disabled = true;
+        } else {
+            this.classList.remove('is-invalid');
+            
+            // Find and remove validation feedback if it exists
+            const feedbackElement = this.nextElementSibling;
+            if (feedbackElement && feedbackElement.classList.contains('invalid-feedback')) {
+                feedbackElement.remove();
+            }
+            
+            // Enable the save button
+            saveAnimeBtn.disabled = false;
+        }
+    });
     
     // Configurar intervalo para verificar o status na tela principal
     homeRefreshInterval = setInterval(loadDownloadStatus, 3000);

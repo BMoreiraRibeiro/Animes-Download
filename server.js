@@ -70,6 +70,9 @@ if (fs.existsSync(IMAGES_CACHE_FILE)) {
     }
 }
 
+// Global variable to track active download processes
+let activeDownloadProcesses = [];
+
 // API Routes
 // Get anime list
 app.get('/api/animes', (req, res) => {
@@ -255,8 +258,12 @@ app.post('/api/animes', (req, res) => {
 // Update anime
 app.put('/api/animes/:id', (req, res) => {
     try {
-        const { title, displayTitle, quality, startEpisode, animeUrl } = req.body;
-        const animeId = req.params.id;
+        const { title, displayTitle, quality, startEpisode } = req.body;
+        // Note: animeUrl is intentionally not destructured as we're not updating it
+        
+        if (!title) {
+            return res.status(400).json({ error: 'Anime title is required' });
+        }
         
         // Read content
         const content = fs.readFileSync(ANIME_LIST_FILE, 'utf8');
@@ -272,23 +279,33 @@ app.put('/api/animes/:id', (req, res) => {
         });
         
         if (animeIndex !== -1) {
-            // Update the line, including URL if provided
-            let updatedLine = `${title} | ${quality} | ${startEpisode}`;
-            if (animeUrl) {
-                updatedLine += ` | "${animeUrl}"`;
+            // Get the existing line components
+            const existingLine = lines[animeIndex];
+            const parts = existingLine.split('|').map(part => part.trim());
+            
+            // Keep the existing title and URL if present, only update quality and startEpisode
+            let updatedLine = `${parts[0]} | ${quality} | ${startEpisode}`;
+            
+            // If there's a URL part, preserve it exactly as it was
+            if (parts.length >= 4) {
+                updatedLine += ` | ${parts[3]}`;
             }
+            
             lines[animeIndex] = updatedLine;
             
             // Write back to file
             fs.writeFileSync(ANIME_LIST_FILE, lines.join('\n'));
             
+            // Preserve the URL that might be in cache
+            const animeUrl = parts.length >= 4 ? parts[3].replace(/^"(.+)"$/, '$1') : '';
+            
             res.json({
-                id: animeId,
+                id: req.params.id,
                 title,
                 displayTitle: displayTitle || title.replace(/-/g, ' '),
                 quality,
                 startEpisode,
-                animeUrl,
+                animeUrl: animeUrl,
                 imageUrl: animeImagesCache[title] || ''
             });
         } else {
@@ -501,6 +518,14 @@ app.post('/api/animes/:id/download', async (req, res) => {
             detached: true
         });
         
+        // Store reference to the process
+        activeDownloadProcesses.push({
+            pid: animeProcess.pid,
+            title: title,
+            tempFile: tempAnimeListFile,
+            process: animeProcess
+        });
+        
         animeProcess.stdout.on('data', (data) => {
             console.log(`[${title}]: ${data}`);
         });
@@ -580,6 +605,14 @@ app.post('/api/download-all', async (req, res) => {
         const animeProcess = spawn('node', ['anime-downloader.js'], {
             env: {...process.env, ANIME_LIST_FILE: tempAnimeListFile},
             detached: true
+        });
+        
+        // Store reference to the process
+        activeDownloadProcesses.push({
+            pid: animeProcess.pid,
+            title: 'all-animes',
+            tempFile: tempAnimeListFile,
+            process: animeProcess
         });
         
         animeProcess.stdout.on('data', (data) => {
@@ -1184,64 +1217,152 @@ app.post('/api/animes/:id/open-folder', (req, res) => {
 // Endpoint para cancelar download atual
 app.post('/api/cancel-download', (req, res) => {
     try {
-        // Verificar se existe um download em andamento
-        if (!fs.existsSync(STATUS_FILE)) {
-            return res.status(400).json({ message: 'Não há download em andamento para cancelar' });
-        }
+        console.log('Canceling current download process...');
         
-        // Ler o arquivo de status
-        const status = JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8'));
+        // Create a cancellation signal file that anime-downloader.js can check
+        const cancelSignalFile = path.join(__dirname, 'cancel-download.signal');
+        fs.writeFileSync(cancelSignalFile, new Date().toISOString());
         
-        // Verificar se existe um download em andamento
-        if (!status.current) {
-            return res.status(400).json({ message: 'Não há download em andamento para cancelar' });
-        }
+        // Force kill all active download processes
+        let killedProcesses = 0;
         
-        // Encontrar e encerrar o processo de download
-        const processes = require('child_process').execSync('tasklist').toString().toLowerCase();
-        
-        // Verificar se o processo de download está em execução
-        if (processes.includes('node') && processes.includes('anime-downloader')) {
-            // Encontrar PIDs dos processos de download
-            const { execSync } = require('child_process');
+        activeDownloadProcesses.forEach(process => {
             try {
-                // Tentar matar qualquer processo de anime-downloader
-                execSync('taskkill /f /im node.exe /fi "WINDOWTITLE eq *anime-downloader*"');
-                console.log('Processo de download cancelado');
-            } catch (err) {
-                console.log('Não foi possível encontrar processo específico, tentando método alternativo');
+                // First try graceful termination
+                if (process.process && !process.process.killed) {
+                    process.process.kill();
+                    killedProcesses++;
+                    console.log(`Terminated process PID ${process.pid}`);
+                }
+                
+                // Remove temp files
+                if (process.tempFile && fs.existsSync(process.tempFile)) {
+                    fs.unlinkSync(process.tempFile);
+                    console.log(`Removed temp file: ${process.tempFile}`);
+                }
+            } catch (e) {
+                console.error(`Error killing process ${process.pid}:`, e);
             }
+        });
+        
+        // Use more aggressive killing as a backup strategy
+        // This executes platform-specific forceful termination
+        try {
+            const { exec } = require('child_process');
             
-            // Atualizar o status
-            status.current.status = 'cancelled';
-            status.current.endTime = new Date().toISOString();
-            
-            // Adicionar à lista de completados (como cancelado)
-            status.completed.push({
-                ...status.current,
-                status: 'cancelled'
-            });
-            
-            // Remover download atual
-            status.current = null;
-            
-            // Salvar o status atualizado
-            fs.writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2));
-            
-            return res.json({ message: 'Download cancelado com sucesso' });
-        } else {
-            // Não encontrou um processo, mas podemos atualizar o status de qualquer forma
-            console.log('Processo de download não encontrado, apenas atualizando status');
-            
-            // Atualizar o status
-            status.current = null;
-            fs.writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2));
-            
-            return res.json({ message: 'Status de download resetado' });
+            if (process.platform === 'win32') {
+                exec('taskkill /F /IM node.exe /FI "WINDOWTITLE eq *anime-downloader*"', (err) => {
+                    if (err) console.log('No additional processes found to terminate');
+                });
+            } else {
+                exec('pkill -9 -f "node anime-downloader.js"', (err) => {
+                    if (err) console.log('No additional processes found to terminate');
+                });
+            }
+        } catch (e) {
+            console.error('Error in forceful termination:', e);
         }
+        
+        // Reset active processes list
+        activeDownloadProcesses = [];
+        
+        // Recursively find and delete all temp files
+        const files = fs.readdirSync(__dirname);
+        files.forEach(file => {
+            if (file.startsWith('temp-') && file.endsWith('.txt')) {
+                try {
+                    fs.unlinkSync(path.join(__dirname, file));
+                    console.log(`Removed temporary file: ${file}`);
+                } catch (e) {
+                    console.error(`Error deleting temp file ${file}:`, e);
+                }
+            }
+        });
+        
+        // Update download status file
+        if (fs.existsSync(STATUS_FILE)) {
+            const status = JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8'));
+            
+            if (status.current) {
+                // Mark current download as cancelled
+                status.current.status = 'cancelled';
+                status.current.endTime = new Date().toISOString();
+                status.current.errorMessage = 'Download was cancelled by user';
+                
+                // Move to completed with cancelled status
+                status.completed.unshift({
+                    ...status.current
+                });
+                
+                status.current = null;
+                
+                // Save updated status
+                fs.writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2));
+            }
+        }
+        
+        res.json({ 
+            success: true, 
+            message: `Download cancelled successfully. Terminated ${killedProcesses} processes.` 
+        });
     } catch (error) {
-        console.error('Erro ao cancelar download:', error);
-        res.status(500).json({ message: `Erro ao cancelar download: ${error.message}` });
+        console.error('Error cancelling download:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Create a force-kill endpoint that will restart the server
+app.post('/api/cancel-download/force', (req, res) => {
+    try {
+        console.log('FORCE CANCELING all downloads by restarting server...');
+        
+        // First, try to clean up temp files before restarting
+        const tempFiles = fs.readdirSync(__dirname)
+            .filter(file => file.startsWith('temp-') && file.endsWith('.txt'));
+            
+        tempFiles.forEach(file => {
+            try {
+                fs.unlinkSync(path.join(__dirname, file));
+                console.log(`Removed temporary file: ${file}`);
+            } catch (e) {
+                // Ignore errors
+            }
+        });
+        
+        // Update status file to mark all downloads as canceled
+        if (fs.existsSync(STATUS_FILE)) {
+            try {
+                const status = JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8'));
+                
+                if (status.current) {
+                    status.current.status = 'cancelled';
+                    status.current.endTime = new Date().toISOString();
+                    status.current.errorMessage = 'Download was force cancelled by user';
+                    
+                    // Move to completed with cancelled status
+                    status.completed.unshift({...status.current});
+                    status.current = null;
+                }
+                
+                fs.writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2));
+            } catch (e) {
+                // Ignore errors
+            }
+        }
+        
+        // Send response before shutdown
+        res.json({ success: true, message: 'Forcing server restart to cancel downloads...' });
+        
+        // Use setTimeout to allow the response to be sent before killing
+        setTimeout(() => {
+            console.log('Terminating server to force cancel downloads');
+            // This will terminate the server process, cutting all connections
+            process.exit(0); // The process monitor/service should restart the server
+        }, 100);
+        
+    } catch (error) {
+        console.error('Error in force cancel:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -1311,6 +1432,11 @@ app.post('/api/check-anime-duplicate', (req, res) => {
         console.error('Error checking for duplicate anime:', error);
         res.status(500).json({ message: 'Erro ao verificar duplicatas', error: error.message });
     }
+});
+
+// Simple status endpoint to check if server is running
+app.get('/api/status', (req, res) => {
+    res.json({ status: 'running', timestamp: new Date().toISOString() });
 });
 
 app.listen(PORT, () => {
