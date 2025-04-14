@@ -1,0 +1,8 @@
+# Ignorar a pasta downloads
+downloads/*
+
+# Arquivos temporários
+*.tmp
+temp-*
+*.log
+
