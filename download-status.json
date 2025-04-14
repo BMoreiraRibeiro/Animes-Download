@@ -1,21 +1,24 @@
 {
-  "current": {
-    "name": "teste",
-    "displayName": "teste",
-    "quality": "HD",
-    "startEpisode": 1,
-    "status": "downloading_episode",
-    "progress": 55,
-    "startTime": "2025-04-14T17:07:51.588Z",
-    "details": {
-      "totalEpisodes": 2,
-      "currentEpisode": 2,
-      "episodeNumber": 2,
-      "downloadPercent": 15
-    }
-  },
+  "current": null,
   "queue": [],
   "completed": [
+    {
+      "name": "teste",
+      "displayName": "teste",
+      "quality": "HD",
+      "startEpisode": 1,
+      "status": "cancelled",
+      "progress": 55,
+      "startTime": "2025-04-14T17:07:51.588Z",
+      "details": {
+        "totalEpisodes": 2,
+        "currentEpisode": 2,
+        "episodeNumber": 2,
+        "downloadPercent": 15
+      },
+      "endTime": "2025-04-14T17:42:31.637Z",
+      "errorMessage": "Download was force cancelled by user"
+    },
     {
       "name": "A-Rank Party",
       "displayName": "A Rank Party",
@@ -1183,8 +1186,19 @@
       "details": {},
       "errorMessage": "Nenhum episódio encontrado",
       "endTime": "2025-04-14T17:07:05.894Z"
+    },
+    {
+      "name": "Echy",
+      "displayName": "Echy",
+      "quality": "HD",
+      "startEpisode": 1,
+      "status": "completed",
+      "progress": 100,
+      "startTime": "2025-04-14T17:44:42.778Z",
+      "details": {},
+      "endTime": "2025-04-14T17:44:43.220Z"
     }
   ],
   "progress": {},
-  "lastUpdate": "2025-04-14T17:09:18.752Z"
+  "lastUpdate": "2025-04-14T17:44:43.220Z"
 }

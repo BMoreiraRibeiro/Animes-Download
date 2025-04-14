@@ -1,4 +1,5 @@
 {
   "defaultQuality": "HD",
-  "startFromEpisode": 1
+  "startFromEpisode": 1,
+  "downloadFolder": "D:\\ANIMES"
 }

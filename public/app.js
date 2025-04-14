@@ -236,8 +236,8 @@ async function saveDownloadFolder() {
         }
         
         // Salvar o caminho validado
-        const saveResponse = await fetch(CONFIG_URL + '/download-folder', {
-            method: 'POST',
+        const saveResponse = await fetch('/api/download-folder', {
+            method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ folder: folderPath })
         });
