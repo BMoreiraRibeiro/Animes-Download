@@ -9,33 +9,11 @@
       "startEpisode": 1,
       "status": "completed",
       "progress": 100,
-      "startTime": "2025-04-19T01:28:50.348Z",
+      "startTime": "2025-04-19T14:04:35.823Z",
       "details": {},
-      "endTime": "2025-04-19T01:28:50.844Z"
-    },
-    {
-      "name": "Echy",
-      "displayName": "Echy",
-      "quality": "HD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-19T01:28:51.038Z",
-      "details": {},
-      "endTime": "2025-04-19T01:28:51.608Z"
-    },
-    {
-      "name": "Echy",
-      "displayName": "Echy",
-      "quality": "HD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-19T01:28:51.695Z",
-      "details": {},
-      "endTime": "2025-04-19T01:28:52.195Z"
+      "endTime": "2025-04-19T14:04:36.222Z"
     }
   ],
   "progress": {},
-  "lastUpdate": "2025-04-19T01:28:52.195Z"
+  "lastUpdate": "2025-04-19T14:04:36.222Z"
 }

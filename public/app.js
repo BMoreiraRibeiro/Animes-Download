@@ -1100,6 +1100,58 @@ async function toggleWatchedStatus(animeId, episodeNumber, button) {
     }
 }
 
+// Fix the showAlert function to ensure alerts are visible
+function showAlert(message, type = 'info') {
+    console.log(`Showing alert: ${message} (${type})`); // Debug log
+    
+    // Get or create the alerts container
+    let alertsContainer = document.getElementById('alerts-container');
+    if (!alertsContainer) {
+        alertsContainer = document.createElement('div');
+        alertsContainer.id = 'alerts-container';
+        alertsContainer.className = 'position-fixed top-0 start-50 translate-middle-x mt-3 z-index-9999';
+        document.body.appendChild(alertsContainer);
+    }
+    
+    // Create the alert element
+    const alertElement = document.createElement('div');
+    alertElement.className = `alert alert-${type} alert-dismissible fade show`;
+    alertElement.setAttribute('role', 'alert');
+    alertElement.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    `;
+    
+    // Add the alert to the container
+    alertsContainer.appendChild(alertElement);
+    
+    // Force a layout reflow to ensure the transition works
+    alertElement.offsetHeight;
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        try {
+            if (alertElement && alertElement.parentNode) {
+                // Try using Bootstrap's API if available
+                if (typeof bootstrap !== 'undefined' && bootstrap.Alert) {
+                    const bsAlert = new bootstrap.Alert(alertElement);
+                    bsAlert.close();
+                } else {
+                    // Manual removal fallback
+                    alertElement.classList.remove('show');
+                    setTimeout(() => {
+                        if (alertElement.parentNode) {
+                            alertElement.parentNode.removeChild(alertElement);
+                        }
+                    }, 150);
+                }
+            }
+        } catch (e) {
+            console.error('Error dismissing alert:', e);
+        }
+    }, 5000);
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
     loadAnimes();
