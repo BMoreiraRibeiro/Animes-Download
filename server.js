@@ -22,6 +22,7 @@ const CONFIG_FILE = path.join(__dirname, 'config.json');
 const STATUS_FILE = path.join(__dirname, 'download-status.json');
 const IMAGES_CACHE_FILE = path.join(__dirname, 'anime-images-cache.json');
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
+const WATCHED_EPISODES_FILE = path.join(__dirname, 'watched-episodes.json');
 
 // Adicione esta constante no início do arquivo com outros mapeamentos de constantes
 const ANIME_ALIASES = {
@@ -67,6 +68,26 @@ if (fs.existsSync(IMAGES_CACHE_FILE)) {
         animeImagesCache = JSON.parse(fs.readFileSync(IMAGES_CACHE_FILE, 'utf8'));
     } catch (error) {
         console.error('Error reading images cache:', error);
+    }
+}
+
+// Initialize watched episodes data
+let watchedEpisodes = {};
+try {
+    if (fs.existsSync(WATCHED_EPISODES_FILE)) {
+        watchedEpisodes = JSON.parse(fs.readFileSync(WATCHED_EPISODES_FILE, 'utf8'));
+    }
+} catch (error) {
+    console.error('Error loading watched episodes:', error);
+    watchedEpisodes = {};
+}
+
+// Save watched episodes
+function saveWatchedEpisodes() {
+    try {
+        fs.writeFileSync(WATCHED_EPISODES_FILE, JSON.stringify(watchedEpisodes, null, 2));
+    } catch (error) {
+        console.error('Error saving watched episodes:', error);
     }
 }
 
@@ -454,6 +475,39 @@ function getAnimeEntryFromList(animeTitle) {
     } catch (error) {
         console.error('Error reading anime entry:', error);
         return null;
+    }
+}
+
+// Atualizar status de download durante o processo
+function updateDownloadStatus(anime, episode, episodeProgress, speed, eta, queue) {
+    try {
+        // Ler status atual
+        let status = { completed: [] };
+        if (fs.existsSync(STATUS_FILE)) {
+            status = JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8'));
+        }
+        
+        // Atualizar com informações do episódio atual
+        status.status = 'downloading';
+        status.currentAnime = anime;
+        status.currentEpisode = {
+            ...episode,
+            progress: episodeProgress,  // Progresso específico do episódio
+            speed: speed,
+            eta: eta
+        };
+        
+        // Manter a fila atualizada
+        if (queue) {
+            status.queue = queue;
+        }
+        
+        status.lastUpdated = new Date().toISOString();
+        
+        // Salvar status atualizado
+        fs.writeFileSync(STATUS_FILE, JSON.stringify(status, null, 2));
+    } catch (error) {
+        console.error('Error updating download status:', error);
     }
 }
 
@@ -960,7 +1014,7 @@ app.get('/api/download-folder', (req, res) => {
     }
 });
 
-// Endpoint para alterar a pasta de download
+// Endpoint para salvar pasta de download (certifique-se que isso já existe, ou adicione-o)
 app.put('/api/download-folder', (req, res) => {
     try {
         const { folder } = req.body;
@@ -969,22 +1023,20 @@ app.put('/api/download-folder', (req, res) => {
             return res.status(400).json({ error: 'Folder path is required' });
         }
         
-        // Verificar se a pasta existe, se não, tentar criar
-        if (!fs.existsSync(folder)) {
-            try {
-                fs.mkdirSync(folder, { recursive: true });
-            } catch (error) {
-                return res.status(400).json({ error: `Could not create folder: ${error.message}` });
-            }
-        }
-        
         // Atualizar configuração
         config.downloadFolder = folder;
+        
+        // Salvar no arquivo de configuração
         fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+        
+        // Criar pasta se não existir
+        if (!fs.existsSync(folder)) {
+            fs.mkdirSync(folder, { recursive: true });
+        }
         
         res.json({ folder });
     } catch (error) {
-        console.error('Error updating download folder:', error);
+        console.error('Error saving download folder:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -1432,6 +1484,60 @@ app.post('/api/check-anime-duplicate', (req, res) => {
         console.error('Error checking for duplicate anime:', error);
         res.status(500).json({ message: 'Erro ao verificar duplicatas', error: error.message });
     }
+});
+
+// Endpoint para resetar status de download
+app.post('/api/download-status/reset', (req, res) => {
+    try {
+        const resetStatus = req.body;
+        
+        // Garantir que o status foi fornecido
+        if (!resetStatus) {
+            return res.status(400).json({ error: 'Reset status data is required' });
+        }
+        
+        // Salvar no arquivo de status
+        fs.writeFileSync(STATUS_FILE, JSON.stringify(resetStatus, null, 2));
+        
+        // Responder com sucesso
+        res.json({ message: 'Download status reset successfully' });
+    } catch (error) {
+        console.error('Error resetting download status:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Get watched episodes
+app.get('/api/watched-episodes', (req, res) => {
+    res.json(watchedEpisodes);
+});
+
+// Mark episode as watched
+app.post('/api/anime/:animeId/episode/:episodeNumber/watch', (req, res) => {
+    const { animeId, episodeNumber } = req.params;
+    
+    if (!watchedEpisodes[animeId]) {
+        watchedEpisodes[animeId] = [];
+    }
+    
+    if (!watchedEpisodes[animeId].includes(episodeNumber)) {
+        watchedEpisodes[animeId].push(episodeNumber);
+        saveWatchedEpisodes();
+    }
+    
+    res.json({ success: true });
+});
+
+// Mark episode as unwatched
+app.delete('/api/anime/:animeId/episode/:episodeNumber/watch', (req, res) => {
+    const { animeId, episodeNumber } = req.params;
+    
+    if (watchedEpisodes[animeId]) {
+        watchedEpisodes[animeId] = watchedEpisodes[animeId].filter(ep => ep !== episodeNumber);
+        saveWatchedEpisodes();
+    }
+    
+    res.json({ success: true });
 });
 
 // Simple status endpoint to check if server is running

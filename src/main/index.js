@@ -33,7 +33,7 @@ app.on('activate', () => {
 
 function createDownloadHandler() {
   ipcMain.on('download-anime', async (event, animeData) => {
-    const downloadPath = app.getPath('downloads');
+    const downloadPath = getDownloadPath();
     const animeTitle = animeData.customName || animeData.title;
     const sanitizedTitle = sanitizeFilename(animeTitle);
     const animeFolder = path.join(downloadPath, sanitizedTitle);
@@ -117,8 +117,19 @@ function sanitizeFilename(name) {
 
 // Helper function to get download path from settings
 function getDownloadPath() {
-  // Implement this based on your app's settings
-  // For example, return from electron-store or a default path
+  try {
+    const configPath = path.join(__dirname, '../../config.json');
+    const configData = fs.readFileSync(configPath, 'utf8');
+    const config = JSON.parse(configData);
+    
+    if (config.downloadFolder) {
+      return config.downloadFolder;
+    }
+  } catch (error) {
+    console.error('Error reading download path from config:', error);
+  }
+  
+  // Fallback to default path if config reading fails
   return path.join(app.getPath('downloads'), 'Animes');
 }
 

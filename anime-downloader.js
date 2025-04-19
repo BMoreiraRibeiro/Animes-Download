@@ -472,27 +472,28 @@ IconIndex=0
                 // Adicionar arquivo temporário à lista de rastreamento
                 tempFiles.add(tempFilePath);
                 
-                // Baixar para arquivo temporário
+                // Download do episódio
+                console.log(`Baixando ${selectedLink.quality}: ${selectedLink.url}`);
                 await downloadFile(selectedLink.url, tempFilePath, animeEntry.name);
                 
-                // Verificar se o arquivo temporário foi baixado corretamente
-                const fileStats = fs.statSync(tempFilePath);
-                if (fileStats.size < 10240) { // Menos de 10KB - provavelmente erro
-                    const fileContent = fs.readFileSync(tempFilePath, 'utf8');
-                    if (fileContent.includes('error') || fileContent.includes('404') || fileContent.includes('não encontrado')) {
-                        throw new Error('Arquivo baixado parece ser uma página de erro, não um vídeo válido');
-                    }
-                }
-                
-                // Mover arquivo temporário para o nome final
+                // Mover o arquivo temporário para o destino final
                 fs.renameSync(tempFilePath, filePath);
                 
-                // Remover da lista de arquivos temporários
+                // Remover o arquivo temporário da lista de rastreamento
                 tempFiles.delete(tempFilePath);
                 
                 const successMessage = `✓ Episódio ${episodeNumber} baixado com sucesso! [${selectedLink.quality}]`;
                 console.log(successMessage);
                 logStream.write(`${successMessage}\n`);
+                
+                // After each successful episode, mark the progress correctly
+                updateProgress(animeEntry.name, 'downloading', progressPercent, null, {
+                    totalEpisodes: filteredEpisodes.length,
+                    currentEpisode: index + 1,
+                    episodeNumber: episodeNumber,
+                    downloadPercent: 100  // Mark this episode as 100% complete
+                });
+                
             } catch (error) {
                 const errorMessage = `✗ Erro ao baixar episódio ${episodeNumber}: ${error.message}`;
                 console.error(errorMessage);
@@ -523,6 +524,7 @@ IconIndex=0
         logStream.write(completeMessage);
         logStream.end();
         
+        // Mark as 100% complete when all episodes are finished
         updateProgress(animeEntry.name, 'completed', 100);
         
     } catch (error) {
@@ -535,7 +537,7 @@ IconIndex=0
 function updateProgress(animeName, status, percent, error = null, details = {}) {
     if (downloadStatus.current && downloadStatus.current.name === animeName) {
         downloadStatus.current.status = status;
-        downloadStatus.current.progress = percent;
+        downloadStatus.current.progress = percent; // This updates the main progress
         
         if (error) downloadStatus.current.errorMessage = error;
         if (details) downloadStatus.current.details = details;
@@ -912,12 +914,16 @@ function downloadFile(url, destination, animeName) {
                             
                             // Atualizar o status de download com o progresso
                             if (downloadStatus.current && downloadStatus.current.name === animeName) {
-                                if (downloadStatus.current.details && 
-                                    downloadStatus.current.details.currentEpisode) {
-                                    
+                                // Update both the episode-specific progress and the main progress
+                                if (downloadStatus.current.details) {
+                                    if (!downloadStatus.current.details.downloadPercent) {
+                                        downloadStatus.current.details.downloadPercent = 0;
+                                    }
                                     downloadStatus.current.details.downloadPercent = percent;
-                                    saveDownloadStatus();
                                 }
+                                // Also update the main progress for UI display
+                                downloadStatus.current.progress = percent;
+                                saveDownloadStatus();
                             }
                             
                             // Check for cancellation every 5% progress
@@ -935,6 +941,14 @@ function downloadFile(url, destination, animeName) {
                 fileStream.on('finish', () => {
                     fileStream.close();
                     tempFiles.delete(destination);
+                    // Set progress to 100% when finished
+                    if (downloadStatus.current && downloadStatus.current.name === animeName) {
+                        if (downloadStatus.current.details) {
+                            downloadStatus.current.details.downloadPercent = 100;
+                        }
+                        downloadStatus.current.progress = 100;
+                        saveDownloadStatus();
+                    }
                     resolve();
                 });
                 
