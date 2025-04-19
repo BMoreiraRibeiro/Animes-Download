@@ -34,11 +34,40 @@ const DEFAULT_CONFIG = {
 // Carregar configurações
 let CONFIG = DEFAULT_CONFIG;
 try {
-    CONFIG = { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) };
+    if (fs.existsSync(CONFIG_FILE)) {
+        const configContent = fs.readFileSync(CONFIG_FILE, 'utf8');
+        console.log(`Loading configuration from: ${CONFIG_FILE}`);
+        
+        if (configContent && configContent.trim() !== '') {
+            CONFIG = { ...DEFAULT_CONFIG, ...JSON.parse(configContent) };
+            console.log('Configuration loaded successfully');
+        } else {
+            console.log('Config file exists but is empty. Using default configuration');
+        }
+    } else {
+        console.log('Config file not found. Creating with default values');
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(DEFAULT_CONFIG, null, 2));
+    }
+    
+    // Use the download folder from config or default
     DOWNLOAD_FOLDER = CONFIG.downloadFolder || DEFAULT_CONFIG.downloadFolder;
+    console.log(`Download folder set to: ${DOWNLOAD_FOLDER}`);
+    
+    // Ensure the download folder exists
+    if (!fs.existsSync(DOWNLOAD_FOLDER)) {
+        fs.mkdirSync(DOWNLOAD_FOLDER, { recursive: true });
+        console.log(`Created download folder: ${DOWNLOAD_FOLDER}`);
+    }
 } catch (error) {
-    console.log(`Erro ao ler arquivo de configuração. Usando configurações padrão.`);
+    console.error(`Error loading configuration: ${error.message}`);
+    console.log('Using default configuration due to error');
     DOWNLOAD_FOLDER = DEFAULT_CONFIG.downloadFolder;
+    
+    // Ensure the default download folder exists
+    if (!fs.existsSync(DOWNLOAD_FOLDER)) {
+        fs.mkdirSync(DOWNLOAD_FOLDER, { recursive: true });
+        console.log(`Created default download folder: ${DOWNLOAD_FOLDER}`);
+    }
 }
 
 // Garantir que a pasta de downloads existe

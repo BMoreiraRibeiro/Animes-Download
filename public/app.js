@@ -188,6 +188,7 @@ async function loadDownloadFolder() {
     try {
         const response = await fetch(DOWNLOAD_FOLDER_URL);
         const data = await response.json();
+        console.log('Loaded download folder:', data);
         downloadFolderInput.value = data.folder;
     } catch (error) {
         console.error('Error loading download folder:', error);
@@ -198,7 +199,6 @@ async function loadDownloadFolder() {
 // Save download folder
 async function saveDownloadFolder() {
     try {
-        // Obter o caminho do input, permitindo que o usuário tenha editado manualmente
         const folderPath = downloadFolderInput.value.trim();
         
         if (!folderPath) {
@@ -206,61 +206,47 @@ async function saveDownloadFolder() {
             return;
         }
         
-        // Verificar se o caminho é válido antes de salvar
-        const response = await fetch(`${DIRECTORIES_URL}/validate`, {
+        console.log('Saving download folder:', folderPath);
+        
+        // Verify path is valid
+        const validateResponse = await fetch(`${DIRECTORIES_URL}/validate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ path: folderPath })
         });
         
-        const result = await response.json();
+        const validationResult = await validateResponse.json();
         
-        if (!result.valid) {
-            // Se o caminho não existir mas puder ser criado
-            if (result.canCreate) {
-                if (confirm(`A pasta "${folderPath}" não existe. Deseja criá-la?`)) {
-                    // Tentar criar a pasta
-                    const createResponse = await fetch(`${DIRECTORIES_URL}/validate`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            path: folderPath,
-                            createIfNotExists: true
-                        })
-                    });
-                    
-                    const createResult = await createResponse.json();
-                    
-                    if (!createResult.valid) {
-                        showAlert(`Erro ao criar pasta: ${createResult.error}`, 'danger');
-                        return;
-                    }
-                    
-                    // Pasta criada com sucesso, continuar com o salvamento
-                } else {
-                    // Usuário optou por não criar a pasta
-                    return;
-                }
-            } else {
-                // Erro diferente de "pasta não existe"
-                showAlert(`Caminho inválido: ${result.error}`, 'danger');
+        if (!validationResult.valid && !validationResult.canCreate) {
+            showAlert(`Caminho inválido: ${validationResult.error || 'pasta não pode ser criada'}`, 'danger');
+            return;
+        }
+        
+        // Ask for confirmation if folder doesn't exist
+        if (!validationResult.valid && validationResult.canCreate) {
+            if (!confirm(`A pasta "${folderPath}" não existe. Deseja criá-la?`)) {
                 return;
             }
         }
         
-        // Salvar o caminho validado
-        const saveResponse = await fetch('/api/download-folder', {
-            method: 'PUT',
+        // Save folder - using POST method
+        const saveResponse = await fetch(DOWNLOAD_FOLDER_URL, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ folder: folderPath })
         });
         
         if (!saveResponse.ok) {
-            const error = await saveResponse.json();
-            throw new Error(error.message || 'Erro ao salvar pasta de download');
+            const errorData = await saveResponse.json();
+            throw new Error(errorData.error || 'Erro ao salvar pasta de download');
         }
         
-        showAlert('Pasta de downloads salva com sucesso!', 'success');
+        const result = await saveResponse.json();
+        console.log('Save result:', result);
+        
+        if (result.success) {
+            showAlert('Pasta de downloads salva com sucesso!', 'success');
+        }
     } catch (error) {
         console.error('Error saving download folder:', error);
         showAlert(`Erro ao salvar pasta de download: ${error.message}`, 'danger');

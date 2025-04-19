@@ -51,7 +51,7 @@ try {
 }
 
 // Garantir que a pasta de downloads existe
-const DOWNLOAD_FOLDER = config.downloadFolder || path.join(__dirname, 'downloads');
+let DOWNLOAD_FOLDER = config.downloadFolder || path.join(__dirname, 'downloads');
 if (!fs.existsSync(DOWNLOAD_FOLDER)) {
     fs.mkdirSync(DOWNLOAD_FOLDER, { recursive: true });
 }
@@ -1007,36 +1007,49 @@ app.get('/api/download-status', (req, res) => {
 // Endpoint para obter a pasta de download
 app.get('/api/download-folder', (req, res) => {
     try {
-        res.json({ folder: DOWNLOAD_FOLDER });
+        res.json({ folder: config.downloadFolder || DOWNLOAD_FOLDER });
     } catch (error) {
         console.error('Error getting download folder:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// Endpoint para salvar pasta de download (certifique-se que isso já existe, ou adicione-o)
-app.put('/api/download-folder', (req, res) => {
+// Set download folder - standardize on POST method
+app.post('/api/download-folder', (req, res) => {
     try {
         const { folder } = req.body;
         
         if (!folder) {
-            return res.status(400).json({ error: 'Folder path is required' });
+            return res.status(400).json({ error: 'No folder path provided' });
         }
         
-        // Atualizar configuração
-        config.downloadFolder = folder;
+        console.log(`Setting download folder to: ${folder}`);
         
-        // Salvar no arquivo de configuração
-        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
-        
-        // Criar pasta se não existir
-        if (!fs.existsSync(folder)) {
-            fs.mkdirSync(folder, { recursive: true });
+        // Validate the path
+        try {
+            // Create folder if it doesn't exist
+            if (!fs.existsSync(folder)) {
+                fs.mkdirSync(folder, { recursive: true });
+                console.log(`Created folder: ${folder}`);
+            }
+            
+            // Update the global variable - now possible because we changed it to 'let'
+            DOWNLOAD_FOLDER = folder;
+            
+            // Update config object
+            config.downloadFolder = folder;
+            
+            // Save to config file
+            fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+            console.log(`Config saved with download folder: ${folder}`);
+            
+            res.json({ success: true, folder });
+        } catch (error) {
+            console.error('Error setting download folder:', error);
+            res.status(500).json({ error: error.message });
         }
-        
-        res.json({ folder });
     } catch (error) {
-        console.error('Error saving download folder:', error);
+        console.error('Error processing download folder request:', error);
         res.status(500).json({ error: error.message });
     }
 });
