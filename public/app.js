@@ -133,7 +133,7 @@ async function loadAnimes() {
             }
         }
         
-        renderAnimes();
+        renderAnimeList();
     } catch (error) {
         console.error('Error loading animes:', error);
         showAlert('Erro ao carregar animes', 'danger');
@@ -373,91 +373,105 @@ function selectFolder() {
     }
 }
 
-// Render animes
-function renderAnimes() {
-    if (animes.length === 0) {
-        animeList.innerHTML = `
-            <div class="col-12">
-                <div class="alert alert-info">
-                    Nenhum anime na lista. Adicione seu primeiro anime clicando no botão acima.
-                </div>
-            </div>
-        `;
-        return;
-    }
-    
-    animeList.innerHTML = animes.map(anime => {
-        // Usar displayTitle (sem hífens) para exibição
-        const animeTitle = anime.displayTitle || anime.title.replace(/-/g, ' ');
+// Render anime list
+async function renderAnimeList() {
+    try {
+        // Get animes from API
+        const response = await fetch(ANIMES_URL);
+        const data = await response.json();
         
-        // Caso especial para Re:Zero
-        if ((anime.title.toLowerCase().includes('re:zero') || 
-             anime.title.toLowerCase().includes('re-zero')) && 
-            !anime.imageUrl) {
-            // Imagem hardcoded para Re:Zero
-            anime.imageUrl = 'https://animefire.plus/img/animes/re-zero-kara-hajimeru-isekai-seikatsu-3rd-season-large.webp';
+        // Sort animes alphabetically by title
+        data.sort((a, b) => {
+            // Use displayTitle if available, otherwise use title
+            const titleA = (a.displayTitle || a.title).toLowerCase();
+            const titleB = (b.displayTitle || b.title).toLowerCase();
+            return titleA.localeCompare(titleB);
+        });
+        
+        animeList.innerHTML = '';
+        
+        if (data.length === 0) {
+            animeList.innerHTML = '<div class="text-center mt-4"><p>Nenhum anime adicionado. Comece adicionando um anime!</p></div>';
+            return;
         }
-        
-        // Determinar como exibir o anime (com imagem ou placeholder)
-        const imageSection = anime.imageUrl ? 
-            `<div class="anime-card-img" style="background-image: url('${anime.imageUrl}')">
-                <div class="anime-card-img-title">${animeTitle}</div>
-            </div>` :
-            `<div class="anime-card-img-placeholder">
-                <div>${animeTitle}</div>
-            </div>`;
-        
-        // Add URL link if available
-        const urlLink = anime.animeUrl ? 
-            `<a href="${anime.animeUrl}" target="_blank" class="btn btn-sm btn-outline-primary mb-2" title="Abrir no AnimeFirePlus">
-                <i class="bi bi-link-45deg"></i> Ver Online
-            </a>` : '';
+
+        // Create anime cards
+        data.forEach(anime => {
+            // Usar displayTitle (sem hífens) para exibição
+            const animeTitle = anime.displayTitle || anime.title.replace(/-/g, ' ');
             
-        return `
-            <div class="col-md-6 col-lg-4 mb-4" data-anime-id="${anime.id}">
-                <div class="card anime-card">
-                    ${imageSection}
-                    <span class="badge bg-info badge-episodes">${anime.episodes?.length || 0} eps</span>
-                    <span class="badge bg-primary quality-badge">${anime.quality}</span>
-                    
-                    <div class="card-body">
-                        <p class="card-text">
-                            <span class="badge bg-secondary">Desde ep. ${anime.startEpisode}</span>
-                        </p>
-                        ${urlLink}
-                    </div>
-                    <div class="card-footer">
-                        <div class="d-flex flex-wrap gap-1 justify-content-between">
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-primary" data-action="view-episodes" data-id="${anime.id}">
-                                    <i class="bi bi-eye"></i> Episódios
-                                </button>
-                                <button class="btn btn-outline-secondary" data-action="edit" data-id="${anime.id}">
-                                    <i class="bi bi-pencil"></i> Editar
-                                </button>
-                                <button class="btn btn-outline-danger" data-action="delete" data-id="${anime.id}">
-                                    <i class="bi bi-trash"></i> Excluir
-                                </button>
-                            </div>
-                            <div>
-                                <button class="btn btn-sm btn-info" data-action="open-folder" data-id="${anime.id}">
-                                    <i class="bi bi-folder"></i> Abrir Pasta
-                                </button>
-                                <button class="btn btn-sm btn-success" data-action="download" data-id="${anime.id}">
-                                    <i class="bi bi-download"></i> Download
-                                </button>
+            // Caso especial para Re:Zero
+            if ((anime.title.toLowerCase().includes('re:zero') || 
+                 anime.title.toLowerCase().includes('re-zero')) && 
+                !anime.imageUrl) {
+                // Imagem hardcoded para Re:Zero
+                anime.imageUrl = 'https://animefire.plus/img/animes/re-zero-kara-hajimeru-isekai-seikatsu-3rd-season-large.webp';
+            }
+            
+            // Determinar como exibir o anime (com imagem ou placeholder)
+            const imageSection = anime.imageUrl ? 
+                `<div class="anime-card-img" style="background-image: url('${anime.imageUrl}')">
+                    <div class="anime-card-img-title">${animeTitle}</div>
+                </div>` :
+                `<div class="anime-card-img-placeholder">
+                    <div>${animeTitle}</div>
+                </div>`;
+            
+            // Add URL link if available
+            const urlLink = anime.animeUrl ? 
+                `<a href="${anime.animeUrl}" target="_blank" class="btn btn-sm btn-outline-primary mb-2" title="Abrir no AnimeFirePlus">
+                    <i class="bi bi-link-45deg"></i> Ver Online
+                </a>` : '';
+                
+            animeList.innerHTML += `
+                <div class="col-md-6 col-lg-4 mb-4" data-anime-id="${anime.id}">
+                    <div class="card anime-card">
+                        ${imageSection}
+                        <span class="badge bg-info badge-episodes">${anime.episodes?.length || 0} eps</span>
+                        <span class="badge bg-primary quality-badge">${anime.quality}</span>
+                        
+                        <div class="card-body">
+                            <p class="card-text">
+                                <span class="badge bg-secondary">Desde ep. ${anime.startEpisode}</span>
+                            </p>
+                            ${urlLink}
+                        </div>
+                        <div class="card-footer">
+                            <div class="d-flex flex-wrap gap-1 justify-content-between">
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" data-action="view-episodes" data-id="${anime.id}">
+                                        <i class="bi bi-eye"></i> Episódios
+                                    </button>
+                                    <button class="btn btn-outline-secondary" data-action="edit" data-id="${anime.id}">
+                                        <i class="bi bi-pencil"></i> Editar
+                                    </button>
+                                    <button class="btn btn-outline-danger" data-action="delete" data-id="${anime.id}">
+                                        <i class="bi bi-trash"></i> Excluir
+                                    </button>
+                                </div>
+                                <div>
+                                    <button class="btn btn-sm btn-info" data-action="open-folder" data-id="${anime.id}">
+                                        <i class="bi bi-folder"></i> Abrir Pasta
+                                    </button>
+                                    <button class="btn btn-sm btn-success" data-action="download" data-id="${anime.id}">
+                                        <i class="bi bi-download"></i> Download
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `;
-    }).join('');
-    
-    // Add event listeners
-    document.querySelectorAll('[data-action]').forEach(button => {
-        button.addEventListener('click', handleAnimeAction);
-    });
+            `;
+        });
+        
+        // Add event listeners
+        document.querySelectorAll('[data-action]').forEach(button => {
+            button.addEventListener('click', handleAnimeAction);
+        });
+    } catch (error) {
+        console.error('Error rendering anime list:', error);
+        showAlert('Erro ao carregar lista de animes', 'danger');
+    }
 }
 
 // Handle anime actions (edit, delete, download)
