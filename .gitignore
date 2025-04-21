@@ -5,5 +5,8 @@ downloads/*
 *.tmp
 temp-*
 *.log
-anime-list.txt
 
+anime-list.txt
+anime-images-cache.json
+cancel-download.signal
+download-status.json
