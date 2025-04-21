@@ -1169,9 +1169,16 @@ function showAlert(message, type = 'info') {
 // Add this function to load and display featured animes
 async function loadFeaturedAnimes() {
     try {
-        const response = await fetch('/api/featured-animes');
+        console.log('Attempting to fetch featured animes from server...');
+        const response = await fetch('/api/featured-animes', {
+            headers: {
+                'Cache-Control': 'no-cache'
+            },
+            timeout: 10000
+        });
+        
         if (!response.ok) {
-            throw new Error('Failed to fetch featured animes');
+            throw new Error(`Failed to fetch featured animes (Status: ${response.status})`);
         }
         
         const featuredAnimes = await response.json();
@@ -1223,8 +1230,27 @@ async function loadFeaturedAnimes() {
         });
     } catch (error) {
         console.error('Error loading featured animes:', error);
-        document.getElementById('featured-animes-container').innerHTML = 
-            '<div class="alert alert-danger">Erro ao carregar animes em destaque.</div>';
+        const container = document.getElementById('featured-animes-container');
+        if (container) {
+            // Show error but with a retry button
+            container.innerHTML = `
+                <div class="alert alert-warning">
+                    <p>Não foi possível carregar os animes em destaque.</p>
+                    <button class="btn btn-sm btn-primary mt-2" id="retry-featured-btn">
+                        <i class="bi bi-arrow-clockwise"></i> Tentar Novamente
+                    </button>
+                </div>
+            `;
+            
+            // Add event listener to retry button
+            const retryBtn = document.getElementById('retry-featured-btn');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', function() {
+                    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
+                    setTimeout(loadFeaturedAnimes, 500); // Retry after a short delay
+                });
+            }
+        }
     }
 }
 
