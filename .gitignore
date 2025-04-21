@@ -10,3 +10,5 @@ anime-list.txt
 anime-images-cache.json
 cancel-download.signal
 download-status.json
+config.json
+watched-episodes.json
