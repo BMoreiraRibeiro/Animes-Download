@@ -1406,4 +1406,15 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Load featured animes
     loadFeaturedAnimes();
+    
+    // Add event listener for featured animes navigation link
+    const featuredAnimeNavLink = document.querySelector('.nav-featured');
+    if (featuredAnimeNavLink) {
+        featuredAnimeNavLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('featured-animes').scrollIntoView({
+                behavior: 'smooth'
+            });
+        });
+    }
 });
