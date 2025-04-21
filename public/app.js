@@ -89,36 +89,72 @@ let watchedEpisodes = {};
 // Navigation
 homeLink.addEventListener('click', (e) => {
     e.preventDefault();
-    homeView.style.display = 'block';
-    settingsView.style.display = 'none';
-    homeLink.classList.add('active');
-    settingsLink.classList.remove('active');
-    
-    // Carregar status inicial para a tela principal
-    loadDownloadStatus();
-    
-    // Configurar atualização periódica para a tela principal
-    if (homeRefreshInterval) {
-        clearInterval(homeRefreshInterval);
-    }
-    homeRefreshInterval = setInterval(loadDownloadStatus, 3000); // Atualizar a cada 3 segundos
+    switchToHomeView();
 });
 
 settingsLink.addEventListener('click', (e) => {
     e.preventDefault();
+    switchToSettingsView();
+});
+
+// Add these helper functions to ensure view switching works correctly
+function switchToHomeView() {
+    console.log('Switching to home view');
+    // Show home content (both featured animes and saved animes)
+    homeView.style.display = 'block';
+    
+    // Make sure featured animes are visible in home view
+    const featuredAnimesSection = document.getElementById('featured-animes');
+    if (featuredAnimesSection) {
+        featuredAnimesSection.style.display = 'block';
+    }
+    
+    // Hide settings view
+    settingsView.style.display = 'none';
+    
+    // Update nav active states
+    homeLink.classList.add('active');
+    settingsLink.classList.remove('active');
+    
+    // Load status and anime data for home view
+    loadDownloadStatus();
+    loadFeaturedAnimes();
+    
+    // Configure periodic updates for the main screen
+    if (homeRefreshInterval) {
+        clearInterval(homeRefreshInterval);
+    }
+    homeRefreshInterval = setInterval(loadDownloadStatus, 3000);
+}
+
+function switchToSettingsView() {
+    console.log('Switching to settings view');
+    // Hide home content
     homeView.style.display = 'none';
+    
+    // Hide featured animes section when in settings
+    const featuredAnimesSection = document.getElementById('featured-animes');
+    if (featuredAnimesSection) {
+        featuredAnimesSection.style.display = 'none';
+    }
+    
+    // Show settings view
     settingsView.style.display = 'block';
+    
+    // Update nav active states
     homeLink.classList.remove('active');
     settingsLink.classList.add('active');
+    
+    // Load settings data
     loadConfig();
     loadDownloadFolder();
     
-    // Parar atualização periódica da tela principal
+    // Stop periodic updates
     if (homeRefreshInterval) {
         clearInterval(homeRefreshInterval);
         homeRefreshInterval = null;
     }
-});
+}
 
 // Load animes
 async function loadAnimes() {
@@ -1169,16 +1205,9 @@ function showAlert(message, type = 'info') {
 // Add this function to load and display featured animes
 async function loadFeaturedAnimes() {
     try {
-        console.log('Attempting to fetch featured animes from server...');
-        const response = await fetch('/api/featured-animes', {
-            headers: {
-                'Cache-Control': 'no-cache'
-            },
-            timeout: 10000
-        });
-        
+        const response = await fetch('/api/featured-animes');
         if (!response.ok) {
-            throw new Error(`Failed to fetch featured animes (Status: ${response.status})`);
+            throw new Error('Failed to fetch featured animes');
         }
         
         const featuredAnimes = await response.json();
@@ -1230,27 +1259,8 @@ async function loadFeaturedAnimes() {
         });
     } catch (error) {
         console.error('Error loading featured animes:', error);
-        const container = document.getElementById('featured-animes-container');
-        if (container) {
-            // Show error but with a retry button
-            container.innerHTML = `
-                <div class="alert alert-warning">
-                    <p>Não foi possível carregar os animes em destaque.</p>
-                    <button class="btn btn-sm btn-primary mt-2" id="retry-featured-btn">
-                        <i class="bi bi-arrow-clockwise"></i> Tentar Novamente
-                    </button>
-                </div>
-            `;
-            
-            // Add event listener to retry button
-            const retryBtn = document.getElementById('retry-featured-btn');
-            if (retryBtn) {
-                retryBtn.addEventListener('click', function() {
-                    container.innerHTML = '<div class="text-center py-3"><div class="spinner-border" role="status"><span class="visually-hidden">Carregando...</span></div></div>';
-                    setTimeout(loadFeaturedAnimes, 500); // Retry after a short delay
-                });
-            }
-        }
+        document.getElementById('featured-animes-container').innerHTML = 
+            '<div class="alert alert-danger">Erro ao carregar animes em destaque.</div>';
     }
 }
 
@@ -1442,5 +1452,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 behavior: 'smooth'
             });
         });
+    }
+    
+    // Add additional initialization for settings link
+    const settingsLinkEl = document.getElementById('settings-link');
+    if (settingsLinkEl) {
+        settingsLinkEl.addEventListener('click', (e) => {
+            e.preventDefault();
+            switchToSettingsView();
+        });
+    } else {
+        console.error('Settings link element not found!');
     }
 });

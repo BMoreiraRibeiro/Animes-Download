@@ -40,13 +40,6 @@ const ANIME_ALIASES = {
     "Saikyou no Ousama, Nidome no Jinsei wa Nani wo Suru": "Saikyou no Ousama, Nidome no Jinsei wa Nani wo Suru?"
 };
 
-// Add the following function at the top of your file after your imports
-function logWithTimestamp(message, isError = false) {
-    const timestamp = new Date().toISOString();
-    const logMethod = isError ? console.error : console.log;
-    logMethod(`[${timestamp}] ${message}`);
-}
-
 // Carregar configurações
 let config = {};
 try {
@@ -1574,25 +1567,17 @@ app.get('/api/status', (req, res) => {
 // Add this endpoint to your Express server
 app.get('/api/featured-animes', async (req, res) => {
     try {
-        logWithTimestamp('Fetching featured animes from AnimeFirePlus...');
+        console.log('Fetching featured animes from AnimeFirePlus...');
         const response = await axios.get('https://animefire.plus', {
-            headers: { 
-                'User-Agent': USER_AGENT,
-                'Accept': 'text/html,application/xhtml+xml,application/xml',
-                'Accept-Language': 'en-US,en;q=0.9',
-                'Connection': 'keep-alive'
-            },
-            timeout: 15000 // 15 seconds timeout
+            headers: { 'User-Agent': USER_AGENT }
         });
-        
-        logWithTimestamp(`Received response from AnimeFirePlus: ${response.status}`);
         const html = response.data;
         
         // Parse the HTML using cheerio
         const $ = cheerio.load(html);
         const animes = [];
         
-        logWithTimestamp('Parsing featured animes from owl carousel...');
+        console.log('Parsing featured animes from owl carousel...');
         
         // Target specifically the owl carousel divArticleLancamentos items
         $('.owl-carousel .divArticleLancamentos').each((index, element) => {
@@ -1648,57 +1633,14 @@ app.get('/api/featured-animes', async (req, res) => {
             });
         });
         
-        logWithTimestamp(`Found ${animes.length} unique featured animes`);
-        
-        if (animes.length === 0) {
-            // Fallback to hardcoded animes if the scraping failed to find any
-            logWithTimestamp('No featured animes found, using fallback data');
-            const fallbackAnimes = getFallbackFeaturedAnimes();
-            return res.json(fallbackAnimes);
-        }
+        console.log(`Found ${animes.length} unique subbed featured animes`);
         
         res.json(animes);
     } catch (error) {
-        logWithTimestamp(`Error fetching featured animes: ${error.message}`, true);
-        if (error.response) {
-            logWithTimestamp(`Response status: ${error.response.status}`, true);
-        }
-        
-        // Return fallback data instead of an error
-        const fallbackAnimes = getFallbackFeaturedAnimes();
-        logWithTimestamp('Returning fallback featured animes', true);
-        res.json(fallbackAnimes);
+        console.error('Error fetching featured animes:', error);
+        res.status(500).json({ error: 'Failed to fetch featured animes' });
     }
 });
-
-// Add this function to provide fallback data
-function getFallbackFeaturedAnimes() {
-    // Return a static array of featured animes as backup
-    return [
-        {
-            title: "Overlord Movie 3",
-            link: "https://animefire.plus/animes/overlord-movie-3-sei-oukoku-hen-todos-os-episodios",
-            imageUrl: "https://animefire.plus/img/animes/overlord-movie-3-sei-oukoku-hen-large.webp",
-            rating: "8.5",
-            ageRating: "A14"
-        },
-        {
-            title: "One Piece",
-            link: "https://animefire.plus/animes/one-piece-todos-os-episodios",
-            imageUrl: "https://animefire.plus/img/animes/one-piece-large.webp",
-            rating: "9.0",
-            ageRating: "L"
-        },
-        {
-            title: "Frieren: Beyond Journey's End",
-            link: "https://animefire.plus/animes/sousou-no-frieren-todos-os-episodios",
-            imageUrl: "https://animefire.plus/img/animes/sousou-no-frieren-large.webp",
-            rating: "9.2",
-            ageRating: "L"
-        }
-        // Add more fallback animes from your cache file if needed
-    ];
-}
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
