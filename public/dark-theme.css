@@ -1,0 +1,120 @@
+/* Dark Theme for Anime Downloader UI */
+
+:root {
+  --dark-bg: #121212;
+  --dark-surface: #1e1e1e;
+  --dark-elevated: #2d2d2d;
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --accent: #bb86fc;
+  --error: #cf6679;
+  --warning: #ffb74d;
+  --success: #81c784;
+  --divider: rgba(255, 255, 255, 0.12);
+}
+
+/* Apply dark background to all primary elements */
+body, html {
+  background-color: var(--dark-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Target card elements, containers, modals, sidebars */
+.card, .container, .modal-content, .sidebar, 
+.list-group, .table, .list-group-item, .navbar, 
+.dropdown-menu, .input-group, .form-control, 
+.jumbotron, .alert {
+  background-color: var(--dark-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--divider) !important;
+}
+
+/* Secondary elements like headers, footers */
+header, footer, .card-header, .card-footer, .modal-header, .modal-footer,
+.list-group-item-action, th, .bg-light {
+  background-color: var(--dark-elevated) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--divider) !important;
+}
+
+/* Inputs and form elements */
+input, select, textarea, .form-control, .input-group-text, .btn-outline-secondary {
+  background-color: var(--dark-elevated) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--divider) !important;
+}
+
+/* Focus styles for inputs */
+input:focus, select:focus, textarea:focus, .form-control:focus {
+  background-color: var(--dark-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 0.2rem rgba(187, 134, 252, 0.25) !important;
+}
+
+/* Links */
+a, .btn-link {
+  color: var(--accent) !important;
+}
+
+a:hover, .btn-link:hover {
+  color: #d4bbff !important;
+}
+
+/* Text */
+.text-dark, .text-body, .text-muted {
+  color: var(--text-primary) !important;
+}
+
+.text-secondary, .text-black-50 {
+  color: var(--text-secondary) !important;
+}
+
+/* Tables */
+table, tr, td, th, .table-bordered, .table-striped {
+  border-color: var(--divider) !important;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dark-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* Add hover effects for better UX in dark mode */
+.btn:hover:not(.btn-primary):not(.btn-secondary):not(.btn-success):not(.btn-danger):not(.btn-warning):not(.btn-info) {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Ensure text is visible on primary buttons */
+.btn-primary {
+  color: white !important;
+}
+
+/* Override any bootstrap utility background classes */
+.bg-white {
+  background-color: var(--dark-surface) !important;
+}
+
+/* Dropdown items */
+.dropdown-item:hover, .dropdown-item:focus {
+  background-color: var(--dark-elevated) !important;
+  color: var(--text-primary) !important;
+}

@@ -16,6 +16,12 @@ app.use(cors());
 app.use(bodyParser.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Add route to serve dark theme CSS with proper cache headers
+app.get('/dark-theme.css', (req, res) => {
+    res.setHeader('Cache-Control', 'no-cache');
+    res.sendFile(path.join(__dirname, 'public', 'dark-theme.css'));
+});
+
 // Constants
 const ANIME_LIST_FILE = path.join(__dirname, 'anime-list.txt');
 const CONFIG_FILE = path.join(__dirname, 'config.json');
@@ -1556,6 +1562,84 @@ app.delete('/api/anime/:animeId/episode/:episodeNumber/watch', (req, res) => {
 // Simple status endpoint to check if server is running
 app.get('/api/status', (req, res) => {
     res.json({ status: 'running', timestamp: new Date().toISOString() });
+});
+
+// Add this endpoint to your Express server
+app.get('/api/featured-animes', async (req, res) => {
+    try {
+        console.log('Fetching featured animes from AnimeFirePlus...');
+        const response = await axios.get('https://animefire.plus', {
+            headers: { 'User-Agent': USER_AGENT }
+        });
+        const html = response.data;
+        
+        // Parse the HTML using cheerio
+        const $ = cheerio.load(html);
+        const animes = [];
+        
+        console.log('Parsing featured animes from owl carousel...');
+        
+        // Target specifically the owl carousel divArticleLancamentos items
+        $('.owl-carousel .divArticleLancamentos').each((index, element) => {
+            const $element = $(element);
+            
+            // Get title from the title attribute (exactly as shown in your example)
+            const fullTitle = $element.attr('title') || '';
+            const title = fullTitle.replace(' - Todos os Episódios', '');
+            
+            // Skip dubbed anime (containing "Dublado" in title)
+            if (fullTitle.includes('(Dublado)') || title.includes('(Dublado)')) {
+                console.log(`Skipping dubbed anime: ${title}`);
+                return;
+            }
+            
+            // Get link from the anchor tag
+            const link = $element.find('a').attr('href') || '';
+            
+            // Get image from src or data-src (prioritize data-src as it's used for lazy loading)
+            const imageUrl = $element.find('img').attr('data-src') || $element.find('img').attr('src') || '';
+            
+            // Get rating from horaUltimosEps span
+            const rating = $element.find('.horaUltimosEps').text().trim();
+            
+            // Get age rating from the background color
+            let ageRating = '';
+            const ageElement = $element.find('.text-blockCapaAnimeTags');
+            if (ageElement.length) {
+                const bgColor = ageElement.attr('style') || '';
+                
+                if (bgColor.includes('#e36722')) {
+                    ageRating = 'A14';
+                } else if (bgColor.includes('#000')) {
+                    ageRating = 'A18';
+                } else if (bgColor.includes('#159415')) {
+                    ageRating = 'L';
+                }
+            }
+            
+            // Skip items without essential data
+            if (!title || !imageUrl) return;
+            
+            // Skip duplicates (if an anime with the same title already exists)
+            const isDuplicate = animes.some(anime => anime.title === title);
+            if (isDuplicate) return;
+            
+            animes.push({
+                title,
+                link,
+                imageUrl,
+                rating,
+                ageRating
+            });
+        });
+        
+        console.log(`Found ${animes.length} unique subbed featured animes`);
+        
+        res.json(animes);
+    } catch (error) {
+        console.error('Error fetching featured animes:', error);
+        res.status(500).json({ error: 'Failed to fetch featured animes' });
+    }
 });
 
 app.listen(PORT, () => {

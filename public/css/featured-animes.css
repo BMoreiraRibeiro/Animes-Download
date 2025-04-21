@@ -1,0 +1,92 @@
+.featured-animes-container {
+    padding: 20px 0;
+}
+
+.featured-animes-title {
+    font-size: 24px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid #343a40;
+    padding-bottom: 8px;
+    color: #fff;
+}
+
+.containerAnimes {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    transition: transform 0.3s;
+    height: 250px;
+}
+
+.containerAnimes:hover {
+    transform: translateY(-5px);
+}
+
+.imgAnimes {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.text-block {
+    position: absolute;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    width: 100%;
+    padding: 8px;
+    transition: background 0.3s;
+}
+
+.containerAnimes:hover .text-block {
+    background: rgba(253, 252, 252, 0.95);
+}
+
+.animeTitle {
+    color: white;
+    font-size: 14px;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.text-block1, .text-blockCapaAnimeTags {
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    border-radius: 4px;
+}
+
+/* Filter controls */
+.filter-controls {
+    margin-bottom: 20px;
+}
+
+.filter-btn {
+    margin-right: 5px;
+    margin-bottom: 5px;
+}
+
+.nav-featured {
+    background-color: #7952b3;
+    color: white !important;
+    border-radius: 4px;
+    margin-left: 5px;
+    font-weight: bold;
+}
+
+.nav-featured:hover {
+    background-color: #6741a6;
+}
+
+/* Make the item div behave like an anchor for clickability */
+.featured-anime-item {
+    cursor: pointer;
+    display: block;
+    position: relative;
+    height: 100%;
+    width: 100%;
+}

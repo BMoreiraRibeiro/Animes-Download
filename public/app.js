@@ -1166,6 +1166,169 @@ function showAlert(message, type = 'info') {
     }, 5000);
 }
 
+// Add this function to load and display featured animes
+async function loadFeaturedAnimes() {
+    try {
+        const response = await fetch('/api/featured-animes');
+        if (!response.ok) {
+            throw new Error('Failed to fetch featured animes');
+        }
+        
+        const featuredAnimes = await response.json();
+        const container = document.getElementById('featured-animes-container');
+        
+        if (!container) return;
+        
+        if (featuredAnimes.length === 0) {
+            container.innerHTML = '<p class="text-center">Nenhum anime em destaque disponível no momento.</p>';
+            return;
+        }
+        
+        let html = '<div class="row">';
+        
+        featuredAnimes.forEach(anime => {
+            const title = anime.title;
+            const imageUrl = anime.imageUrl;
+            const link = anime.link;
+            const rating = anime.rating || 'N/A';
+            const ageRating = anime.ageRating || '';
+            
+            const ageRatingBadge = ageRating ? 
+                `<span class="badge ${ageRating === 'L' ? 'bg-success' : ageRating === 'A18' ? 'bg-dark' : 'bg-warning'} featured-age-rating">${ageRating}</span>` : '';
+            
+            html += `
+                <div class="col-6 col-md-4 col-lg-3 mb-4">
+                    <div class="card featured-anime-card" data-title="${title}" data-url="${link}">
+                        <div class="featured-anime-img-container">
+                            <img src="${imageUrl}" class="card-img-top featured-anime-img" alt="${title}">
+                            ${ageRatingBadge}
+                            <div class="featured-anime-overlay">
+                                <h5 class="featured-anime-title">${title}</h5>
+                                <div class="featured-anime-rating">
+                                    <i class="bi bi-star-fill"></i> ${rating}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.innerHTML = html;
+        
+        // Add event listeners to the cards
+        document.querySelectorAll('.featured-anime-card').forEach(card => {
+            card.addEventListener('click', showFeaturedAnimeOptions);
+        });
+    } catch (error) {
+        console.error('Error loading featured animes:', error);
+        document.getElementById('featured-animes-container').innerHTML = 
+            '<div class="alert alert-danger">Erro ao carregar animes em destaque.</div>';
+    }
+}
+
+// Function to show options when a featured anime card is clicked
+function showFeaturedAnimeOptions(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const card = event.currentTarget;
+    const title = card.dataset.title;
+    const url = card.dataset.url;
+    
+    // Create and position the options menu
+    const optionsMenu = document.createElement('div');
+    optionsMenu.className = 'featured-anime-options-menu';
+    optionsMenu.innerHTML = `
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">${title}</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-primary btn-open-link">
+                        <i class="bi bi-box-arrow-up-right"></i> Abrir Link
+                    </button>
+                    <button class="btn btn-success btn-add-anime">
+                        <i class="bi bi-plus-circle"></i> Adicionar Anime
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Position near the clicked card
+    const rect = card.getBoundingClientRect();
+    const scrollTop = window.scrollY || document.documentElement.scrollTop;
+    const scrollLeft = window.scrollX || document.documentElement.scrollLeft;
+    
+    optionsMenu.style.position = 'absolute';
+    optionsMenu.style.top = `${rect.top + scrollTop - 10}px`;
+    optionsMenu.style.left = `${rect.left + scrollLeft + rect.width/2}px`;
+    optionsMenu.style.transform = 'translateX(-50%)';
+    optionsMenu.style.zIndex = '1050';
+    
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'featured-anime-backdrop';
+    document.body.appendChild(backdrop);
+    
+    // Add menu to body
+    document.body.appendChild(optionsMenu);
+    
+    // Add event listeners
+    optionsMenu.querySelector('.btn-open-link').addEventListener('click', () => {
+        window.open(url, '_blank');
+        removeOptionsMenu();
+    });
+    
+    optionsMenu.querySelector('.btn-add-anime').addEventListener('click', () => {
+        // Pre-fill the anime add modal with details
+        addFeaturedAnimeToList(title, url);
+        removeOptionsMenu();
+    });
+    
+    backdrop.addEventListener('click', removeOptionsMenu);
+    
+    // Function to remove the menu
+    function removeOptionsMenu() {
+        document.body.removeChild(optionsMenu);
+        document.body.removeChild(backdrop);
+    }
+}
+
+// Function to add a featured anime to the list
+function addFeaturedAnimeToList(title, url) {
+    // Open the add anime modal with pre-filled data
+    isEditing = false;
+    animeModalTitle.textContent = 'Adicionar Anime';
+    animeForm.reset();
+    
+    // Format title: replace special characters and spaces with hyphens
+    const formattedTitle = title
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^\w\s-]/g, '')
+        .replace(/\s+/g, '-');
+    
+    animeIdInput.value = '';
+    animeTitleInput.value = formattedTitle;
+    animeUrlInput.value = url;
+    
+    // Enable fields for new anime
+    animeTitleInput.disabled = false;
+    animeUrlInput.disabled = false;
+    
+    // Hide edit mode hints
+    document.querySelectorAll('.edit-mode-hint').forEach(hint => {
+        hint.style.display = 'none';
+    });
+    
+    // Open the modal
+    animeModal.show();
+}
+
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
     loadAnimes();
@@ -1188,6 +1351,22 @@ document.addEventListener('DOMContentLoaded', () => {
     // Adicionar evento para o botão de cancelar no popup
     popupCancelDownloadBtn.addEventListener('click', cancelCurrentDownload);
     
+    // Add toggle functionality for featured animes section
+    const toggleFeaturedBtn = document.getElementById('toggle-featured-animes');
+    const featuredSection = document.getElementById('featured-animes');
+    const toggleIcon = document.getElementById('toggle-icon');
+    
+    if (toggleFeaturedBtn) {
+        toggleFeaturedBtn.addEventListener('click', () => {
+            const isVisible = featuredSection.style.display !== 'none';
+            featuredSection.style.display = isVisible ? 'none' : 'block';
+            toggleIcon.className = isVisible ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+            toggleFeaturedBtn.innerHTML = isVisible ? 
+                '<i class="bi bi-chevron-down"></i> Mostrar' : 
+                '<i class="bi bi-chevron-up"></i> Esconder';
+        });
+    }
+
     // Add real-time validation for the anime title input
     animeTitleInput.addEventListener('input', function() {
         const invalidChars = /[?:<>|\\/*"]/;
@@ -1224,4 +1403,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Configurar intervalo para verificar o status na tela principal
     homeRefreshInterval = setInterval(loadDownloadStatus, 3000);
+    
+    // Load featured animes
+    loadFeaturedAnimes();
 });

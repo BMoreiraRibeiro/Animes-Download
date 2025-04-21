@@ -2,11 +2,13 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=width=device-width, initial-scale=1.0">
     <title>Anime Downloader</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/featured-animes.css">
+    <link rel="stylesheet" href="/dark-theme.css">
     <style>
         #alerts-container {
             position: fixed;
@@ -48,8 +50,14 @@
                     <li class="nav-item">
                         <a class="nav-link" href="#" id="settings-link">Configurações</a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-featured" href="#featured-animes">Animes em Destaque</a>
+                    </li>
                 </ul>
-                <div>
+                <div class="d-flex">
+                    <button class="btn btn-success me-2" id="add-anime-btn">
+                        <i class="bi bi-plus-circle"></i> Adicionar Anime
+                    </button>
                     <button class="btn btn-light" id="download-all-btn">
                         <i class="bi bi-download"></i> Baixar Tudo
                     </button>
@@ -59,14 +67,27 @@
     </nav>
 
     <div class="container mt-4">
-        <!-- Home View -->
-        <div id="home-view">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2>Lista de Animes</h2>
-                <button class="btn btn-success" id="add-anime-btn">
-                    <i class="bi bi-plus-circle"></i> Adicionar Anime
+        <!-- Featured Animes Section with Collapse Toggle -->
+        <div class="container-fluid mb-3">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="featured-animes-title">Animes em Destaque</h2>
+                <button class="btn btn-sm btn-outline-secondary" id="toggle-featured-animes">
+                    <i class="bi bi-chevron-up" id="toggle-icon"></i> Esconder
                 </button>
             </div>
+        </div>
+        
+        <div id="featured-animes" class="container-fluid featured-animes-container">
+            <div class="container">
+                <div id="featured-animes-container">
+                    <!-- Content will be loaded by JavaScript -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Home View -->
+        <div id="home-view">
+            <h2>Lista de Animes</h2>
             
             <!-- Barra de progresso dinâmica (inicialmente oculta) -->
             <div class="card mb-4" id="main-progress-card" style="display: none;">
@@ -87,6 +108,7 @@
                 </div>
             </div>
             
+            <!-- Saved Animes Section - NOW APPEARS SECOND -->
             <div class="row" id="anime-list">
                 <p class="text-center">Carregando animes...</p>
             </div>
@@ -316,5 +338,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css"></script>
     <script src="app.js"></script>
+    <script src="js/featured-animes-data.js"></script>
+    <script src="js/featured-animes.js"></script>
 </body>
 </html>

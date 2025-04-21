@@ -1,19 +1,9 @@
 {
-  "current": null,
+  "status": "idle",
+  "currentAnime": null,
+  "currentEpisode": null,
+  "progress": 0,
   "queue": [],
-  "completed": [
-    {
-      "name": "Echy",
-      "displayName": "Echy",
-      "quality": "HD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-19T14:04:35.823Z",
-      "details": {},
-      "endTime": "2025-04-19T14:04:36.222Z"
-    }
-  ],
-  "progress": {},
-  "lastUpdate": "2025-04-19T14:04:36.222Z"
+  "completed": [],
+  "lastUpdated": "2025-04-20T23:37:31.179Z"
 }
