@@ -699,39 +699,41 @@ app.post('/api/animes/:id/download', async (req, res) => {
         const { title } = req.body;
         
         if (!title) {
+            console.log('[SERVER] ❌ Requisição de download sem título do anime');
             return res.status(400).json({ error: 'Anime title is required' });
         }
         
-        console.log(`Iniciando download para o anime: ${title}`);
+        console.log(`[SERVER] 🚀 Iniciando download para o anime: ${title}`);
         
         // Check if anime is legendado before downloading
-        const isLegendado = await checkAnimeIsLegendado(title);
-        if (!isLegendado) {
-            return res.status(400).json({ 
-                error: 'Este anime não está disponível legendado (apenas dublado)',
-                isLegendado: false 
-            });
+        if (title.includes('(Legendado)')) {
+            console.log(`[SERVER] ⚠️ Tentativa de download de anime legendado: ${title}`);
+            return res.status(400).json({ error: 'Animes legendados não são suportados por enquanto.' });
+        }
+
+        // Get anime entry from list
+        animeLine = getAnimeLineFromList(title);
+        const animeEntry = getAnimeEntryFromList(title);
+        
+        if (!animeEntry) {
+            console.log(`[SERVER] ❌ Anime não encontrado na lista: ${title}`);
+            return res.status(404).json({ error: 'Anime not found in list' });
         }
         
-        // Create a temporary single anime list file
-        const tempAnimeListFile = path.join(__dirname, `temp-${Date.now()}.txt`);
+        console.log(`[SERVER] ✓ Anime encontrado na lista: ${title}`);
+        console.log(`[SERVER] 📝 Detalhes: URL=${animeEntry.animeUrl || 'N/A'}, Qualidade=${animeEntry.quality || 'N/A'}`);
         
-        // Read original file to get the anime entry
-        const content = fs.readFileSync(ANIME_LIST_FILE, 'utf8');
-        const lines = content.split('\n');
+        // Create a temp file with just this one anime
+        const tempId = Date.now().toString();
+        const tempAnimeListFile = path.join(__dirname, `temp-anime-list-${tempId}.txt`);
         
-        let animeLine = lines.find(line => {
-            if (line.trim() && !line.startsWith('#')) {
-                const parts = line.split('|');
-                return parts[0].trim() === title;
-            }
-            return false;
-        });
+        // Check if we have the line from the anime list, or if we need to search by aliases
+        let animeLine = animeEntry ? getAnimeLineFromList(title) : null;
         
-        // Se não encontrou, tente usando o alias
-        if (!animeLine && ANIME_ALIASES[title]) {
-            animeLine = lines.find(line => {
-                if (line.trim() && !line.startsWith('#')) {
+        if (!animeLine) {
+            // If not found directly, try to find by alias
+            animeLine = content.split('\n').find(line => {
+                if (line && !line.startsWith('#') && ANIME_ALIASES[title]) {
                     const parts = line.split('|');
                     return parts[0].trim() === ANIME_ALIASES[title];
                 }
@@ -740,12 +742,13 @@ app.post('/api/animes/:id/download', async (req, res) => {
         }
         
         if (!animeLine) {
+            console.log(`[SERVER] ❌ Linha do anime não encontrada para: ${title}`);
             return res.status(404).json({ error: 'Anime not found in list' });
         }
         
         // Create temp file with just this anime
         fs.writeFileSync(tempAnimeListFile, animeLine);
-        console.log(`Arquivo temporário criado: ${tempAnimeListFile}`);
+        console.log(`[SERVER] 📄 Arquivo temporário criado: ${tempAnimeListFile}`);
         
         // Clear any existing status before starting new download
         // This ensures we see the verification process in the UI
@@ -763,41 +766,32 @@ app.post('/api/animes/:id/download', async (req, res) => {
             lastUpdated: new Date().toISOString()
         };
         fs.writeFileSync(STATUS_FILE, JSON.stringify(resetStatus, null, 2));
+        console.log(`[SERVER] 📊 Status de download resetado para 'verifying'`);
         
         // Pre-fetch anime info to warm up connections and caches for long names
         try {
-            const animeEntry = getAnimeEntryFromList(title);
-            let animeUrl = '';
+            console.log(`[SERVER] 🔄 Pré-carregando informações do anime: ${animeEntry.animeUrl || title}`);
             
-            if (animeEntry && animeEntry.animeUrl) {
-                animeUrl = animeEntry.animeUrl;
-            } else {
-                // Format name for search
-                const searchTerm = title.trim()
-                    .toLowerCase()
-                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                    .replace(/[^\w\s-]/g, '')
-                    .replace(/\s+/g, '-');
+            const animeUrl = animeEntry.animeUrl || `https://animefire.plus/animes/${title.trim().toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^\w\s-]/g, '')
+                .replace(/\s+/g, '-')}-todos-os-episodios`;
                 
-                animeUrl = `https://animefire.plus/animes/${searchTerm}-todos-os-episodios`;
-            }
-            
-            // Pre-fetch in background - this warms up connections
-            console.log(`Pré-carregando informações do anime: ${animeUrl}`);
             axios.get(animeUrl, {
                 headers: { 'User-Agent': USER_AGENT },
-                timeout: 30000 // Increase timeout for long anime names
+                timeout: 30000
+            }).then(() => {
+                console.log(`[SERVER] ✓ Pré-carregamento bem-sucedido para: ${animeUrl}`);
             }).catch(err => {
-                // Silently log any errors but continue with download attempt
-                console.log(`Aviso: Pré-carregamento falhou, mas continuando: ${err.message}`);
+                console.log(`[SERVER] ⚠️ Aviso: Pré-carregamento falhou, mas continuando: ${err.message}`);
             });
         } catch (preFetchError) {
-            console.log(`Pré-carregamento falhou: ${preFetchError.message} - continuando mesmo assim`);
+            console.log(`[SERVER] ⚠️ Pré-carregamento falhou: ${preFetchError.message} - continuando mesmo assim`);
         }
         
         // Define a função para realizar a tentativa de download
         const attemptDownload = (attempt = 1) => {
-            console.log(`Tentativa ${attempt} para iniciar download: ${title}`);
+            console.log(`[SERVER] 🔄 Tentativa ${attempt} para iniciar download: ${title}`);
             
             // Spawn downloader process with the temp file
             const animeProcess = spawn('node', ['anime-downloader.js'], {
@@ -809,6 +803,8 @@ app.post('/api/animes/:id/download', async (req, res) => {
                 detached: true
             });
             
+            console.log(`[SERVER] 🚀 Processo de download iniciado (PID: ${animeProcess.pid})`);
+            
             // Store reference to the process
             activeDownloadProcesses.push({
                 pid: animeProcess.pid,
@@ -819,19 +815,19 @@ app.post('/api/animes/:id/download', async (req, res) => {
             });
             
             animeProcess.stdout.on('data', (data) => {
-                console.log(`[${title}]: ${data}`);
+                console.log(`[SERVER-${title}]: ${data}`);
             });
             
             animeProcess.stderr.on('data', (data) => {
-                console.error(`[${title}] Error: ${data}`);
+                console.error(`[SERVER-${title}-ERROR]: ${data}`);
             });
             
             animeProcess.on('close', (code) => {
-                console.log(`Download process for ${title} exited with code ${code}`);
+                console.log(`[SERVER] ⏹️ Processo de download para ${title} finalizado com código ${code}`);
                 
                 // Se falhou na primeira tentativa para animes com nomes longos, tentar novamente
                 if (code !== 0 && attempt === 1 && title.length > 50) {
-                    console.log(`Falha na primeira tentativa para anime com nome longo (${title.length} caracteres). Tentando novamente...`);
+                    console.log(`[SERVER] ⚠️ Falha na primeira tentativa para anime com nome longo (${title.length} caracteres). Tentando novamente...`);
                     
                     // Aguardar um momento antes de tentar novamente
                     setTimeout(() => {
@@ -842,9 +838,10 @@ app.post('/api/animes/:id/download', async (req, res) => {
                     try {
                         if (fs.existsSync(tempAnimeListFile)) {
                             fs.unlinkSync(tempAnimeListFile);
+                            console.log(`[SERVER] 🗑️ Arquivo temporário removido: ${tempAnimeListFile}`);
                         }
                     } catch (err) {
-                        console.error(`Error removing temp file: ${err.message}`);
+                        console.error(`[SERVER] ❌ Erro ao remover arquivo temporário: ${err.message}`);
                     }
                 }
             });
@@ -855,10 +852,11 @@ app.post('/api/animes/:id/download', async (req, res) => {
         
         // Iniciar a primeira tentativa
         attemptDownload();
+        console.log(`[SERVER] ✅ Download iniciado para ${title}, respondendo ao cliente`);
         
         res.json({ success: true, message: 'Download started' });
     } catch (error) {
-        console.error('Error starting download:', error);
+        console.error(`[SERVER] ❌ Erro ao iniciar download: ${error.message}`);
         res.status(500).json({ error: error.message });
     }
 });

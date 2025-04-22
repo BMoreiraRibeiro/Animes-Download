@@ -6,6 +6,11 @@ const DOWNLOAD_STATUS_URL = `${API_URL}/download-status`;
 const DOWNLOAD_FOLDER_URL = `${API_URL}/download-folder`;
 const DIRECTORIES_URL = `${API_URL}/directories`;
 
+// Logging function for consistent UI-side logging
+function logUI(message) {
+    console.log(`[UI] ${new Date().toISOString()} - ${message}`);
+}
+
 // DOM Elements
 const homeView = document.getElementById('home-view');
 const settingsView = document.getElementById('settings-view');
@@ -110,7 +115,7 @@ settingsLink.addEventListener('click', (e) => {
 
 // Add these helper functions to ensure view switching works correctly
 function switchToHomeView() {
-    console.log('Switching to home view');
+    logUI('Switching to home view');
     // Show home content (both featured animes and saved animes)
     homeView.style.display = 'block';
     
@@ -139,7 +144,7 @@ function switchToHomeView() {
 }
 
 function switchToSettingsView() {
-    console.log('Switching to settings view');
+    logUI('Switching to settings view');
     // Hide home content
     homeView.style.display = 'none';
     
@@ -197,9 +202,9 @@ async function searchAnimeImage(animeTitle) {
         // SEMPRE incluir URL direta na requisição se disponível
         if (anime && anime.animeUrl) {
             requestUrl += `&url=${encodeURIComponent(anime.animeUrl)}`;
-            console.log(`Usando URL direta para buscar imagem do anime: ${anime.animeUrl}`);
+            logUI(`Usando URL direta para buscar imagem do anime: ${anime.animeUrl}`);
         } else {
-            console.log(`Aviso: Nenhuma URL direta disponível para o anime "${animeTitle}"`);
+            logUI(`Aviso: Nenhuma URL direta disponível para o anime "${animeTitle}"`);
         }
         
         // Tentar obter uma imagem através da API
@@ -235,7 +240,7 @@ async function loadDownloadFolder() {
     try {
         const response = await fetch(DOWNLOAD_FOLDER_URL);
         const data = await response.json();
-        console.log('Loaded download folder:', data);
+        logUI('Loaded download folder:', data);
         downloadFolderInput.value = data.folder;
     } catch (error) {
         console.error('Error loading download folder:', error);
@@ -253,7 +258,7 @@ async function saveDownloadFolder() {
             return;
         }
         
-        console.log('Saving download folder:', folderPath);
+        logUI('Saving download folder:', folderPath);
         
         // Verify path is valid
         const validateResponse = await fetch(`${DIRECTORIES_URL}/validate`, {
@@ -289,7 +294,7 @@ async function saveDownloadFolder() {
         }
         
         const result = await saveResponse.json();
-        console.log('Save result:', result);
+        logUI('Save result:', result);
         
         if (result.success) {
             showAlert('Pasta de downloads salva com sucesso!', 'success');
@@ -498,11 +503,6 @@ async function renderAnimeList() {
                                 </div>
                                 <div>
                                     <button class="btn btn-sm btn-info" data-action="open-folder" data-id="${anime.id}">
-                                        <i class="bi bi-folder"></i> Abrir Pasta
-                                    </button>
-                                    <button class="btn btn-sm btn-success" data-action="download" data-id="${anime.id}">
-                                        <i class="bi bi-download"></i> Download
-                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -712,18 +712,22 @@ async function deleteAnime(anime) {
 // Start anime download
 async function startAnimeDownload(anime) {
     try {
-        console.log(`Verificando episódios disponíveis para: ${anime.title}`);
+        console.log(`[FRONTEND] 🔍 Verificando episódios disponíveis para: ${anime.title}`);
         
         if (!anime.animeUrl) {
+            console.log('[FRONTEND] ⚠️ Anime sem URL definida, solicitando confirmação do usuário');
             const confirmUrl = confirm("Este anime não tem URL definida. Recomendamos editar o anime e adicionar a URL antes de baixar. Deseja continuar mesmo assim?");
             if (!confirmUrl) {
+                console.log('[FRONTEND] 🛑 Usuário optou por editar o anime em vez de continuar sem URL');
                 openAnimeModal(anime); // Abrir modal para editar
                 return;
             }
+            console.log('[FRONTEND] ✓ Usuário optou por continuar sem URL definida');
         }
         
         // Salvar referência ao anime atual para ser usado após confirmação
         currentAnimeToDownload = anime;
+        console.log('[FRONTEND] 📋 Preparando modal de confirmação de episódios');
         
         // Mostrar estado de carregamento no modal de confirmação
         confirmAnimeTitle.textContent = anime.displayTitle || anime.title;
@@ -742,6 +746,7 @@ async function startAnimeDownload(anime) {
         
         // Mostrar modal de confirmação
         confirmEpisodesModal.show();
+        console.log('[FRONTEND] 🔄 Solicitando informações sobre episódios ao servidor');
         
         // Buscar informações sobre episódios disponíveis e já baixados
         const response = await fetch(`${ANIMES_URL}/${anime.id}/check-episodes`, {
@@ -752,11 +757,12 @@ async function startAnimeDownload(anime) {
         
         if (!response.ok) {
             const error = await response.json();
+            console.log(`[FRONTEND] ❌ Erro ao verificar episódios: ${error.message || 'Erro desconhecido'}`);
             throw new Error(error.message || 'Erro ao verificar episódios');
         }
         
         const episodeData = await response.json();
-        console.log('Dados de episódios:', episodeData);
+        console.log('[FRONTEND] ✅ Dados de episódios recebidos:', episodeData);
         
         // Atualizar informações no modal
         confirmAnimeTitle.textContent = episodeData.animeTitle || anime.displayTitle || anime.title;
@@ -765,13 +771,16 @@ async function startAnimeDownload(anime) {
         
         // Mostrar episódios já baixados
         if (episodeData.downloadedEpisodes && episodeData.downloadedEpisodes.length > 0) {
+            console.log(`[FRONTEND] 📊 Episódios já baixados: ${episodeData.downloadedEpisodes.join(', ')}`);
             confirmDownloadedEpisodes.textContent = `Episódios já baixados: ${episodeData.downloadedEpisodes.join(', ')}`;
         } else {
+            console.log('[FRONTEND] 📊 Nenhum episódio baixado anteriormente');
             confirmDownloadedEpisodes.textContent = "Nenhum episódio baixado ainda.";
         }
         
         // Mostrar lista de episódios a serem baixados
         if (episodeData.episodesToDownload && episodeData.episodesToDownload.length > 0) {
+            console.log(`[FRONTEND] 📋 ${episodeData.episodesToDownload.length} episódios para baixar`);
             confirmEpisodesCount.textContent = episodeData.episodesToDownload.length;
             
             // Ordenar episódios por número
@@ -787,6 +796,7 @@ async function startAnimeDownload(anime) {
             // Se não houver episódios para baixar, desabilitar botão de confirmação
             confirmDownloadBtn.disabled = episodeData.episodesToDownload.length === 0;
         } else {
+            console.log('[FRONTEND] 📋 Nenhum episódio novo para baixar');
             confirmEpisodesCount.textContent = "0";
             confirmEpisodesList.innerHTML = `
                 <li class="list-group-item text-center">
@@ -797,7 +807,7 @@ async function startAnimeDownload(anime) {
             confirmDownloadBtn.disabled = true;
         }
     } catch (error) {
-        console.error('Error checking episodes:', error);
+        console.error(`[FRONTEND] ❌ Erro ao verificar episódios: ${error.message}`);
         confirmEpisodesModal.hide();
         showAlert(`Erro ao verificar episódios: ${error.message}`, 'danger');
     }
@@ -808,6 +818,7 @@ async function executeDownloadAfterConfirmation() {
     try {
         // Verificar se temos um anime para baixar
         if (!currentAnimeToDownload) {
+            console.error('[FRONTEND] ❌ Tentativa de download sem anime selecionado');
             showAlert('Erro: Nenhum anime selecionado para download', 'danger');
             confirmEpisodesModal.hide();
             return;
@@ -816,7 +827,7 @@ async function executeDownloadAfterConfirmation() {
         // Fechar o modal de confirmação
         confirmEpisodesModal.hide();
         
-        console.log(`Iniciando download para: ${currentAnimeToDownload.title}`);
+        console.log(`[FRONTEND] 🚀 Iniciando download para: ${currentAnimeToDownload.title}`);
         
         // Iniciar o download real
         const response = await fetch(`${ANIMES_URL}/${currentAnimeToDownload.id}/download`, {
@@ -827,14 +838,18 @@ async function executeDownloadAfterConfirmation() {
         
         if (!response.ok) {
             const error = await response.json();
+            console.error(`[FRONTEND] ❌ Erro ao iniciar download: ${error.message || 'Erro desconhecido'}`);
             throw new Error(error.message || 'Erro ao iniciar download');
         }
         
         const result = await response.json();
+        console.log(`[FRONTEND] ✅ Download iniciado com sucesso: ${JSON.stringify(result)}`);
+        
         showAlert(`Download iniciado para "${currentAnimeToDownload.displayTitle || currentAnimeToDownload.title}"`, 'success');
         
         // Abrir o popup de progresso imediatamente
         downloadProgressModal.show();
+        console.log('[FRONTEND] 📊 Popup de progresso de download aberto');
         
         // Set initial progress state
         popupAnimeTitle.textContent = currentAnimeToDownload.displayTitle || currentAnimeToDownload.title;
@@ -843,12 +858,13 @@ async function executeDownloadAfterConfirmation() {
         popupProgress.textContent = '0%';
         
         // Recarregar status imediatamente
+        console.log('[FRONTEND] 🔄 Carregando status inicial de download');
         loadDownloadStatus();
         
         // Limpar a referência ao anime atual
         currentAnimeToDownload = null;
     } catch (error) {
-        console.error('Error starting download:', error);
+        console.error(`[FRONTEND] ❌ Erro ao iniciar download: ${error.message}`);
         showAlert(`Erro ao iniciar download: ${error.message}`, 'danger');
     }
 }
