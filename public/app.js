@@ -503,6 +503,11 @@ async function renderAnimeList() {
                                 </div>
                                 <div>
                                     <button class="btn btn-sm btn-info" data-action="open-folder" data-id="${anime.id}">
+                                        <i class="bi bi-folder"></i> Abrir Pasta
+                                    </button>
+                                    <button class="btn btn-sm btn-success" data-action="download" data-id="${anime.id}">
+                                        <i class="bi bi-download"></i> Download
+                                    </button>
                                 </div>
                             </div>
                         </div>
