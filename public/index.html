@@ -332,6 +332,57 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Confirmação de Episódios Modal -->
+        <div class="modal fade" id="confirm-episodes-modal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Confirmar Download de Episódios</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <h5 id="confirm-anime-title">Carregando...</h5>
+                            <div class="d-flex justify-content-between">
+                                <p>Qualidade: <span id="confirm-anime-quality" class="badge bg-primary">HD</span></p>
+                                <p>Total de episódios: <span id="confirm-total-episodes">0</span></p>
+                            </div>
+                        </div>
+                        
+                        <!-- Informações sobre episódios já baixados -->
+                        <div class="alert alert-info mb-3">
+                            <h6><i class="bi bi-info-circle"></i> Episódios já baixados</h6>
+                            <p id="confirm-downloaded-episodes">Nenhum episódio baixado ainda.</p>
+                        </div>
+
+                        <!-- Lista de episódios a serem baixados -->
+                        <div class="card">
+                            <div class="card-header bg-success text-white">
+                                <h6 class="mb-0">Episódios a serem baixados (<span id="confirm-episodes-count">0</span>)</h6>
+                            </div>
+                            <div class="card-body p-0">
+                                <ul id="confirm-episodes-list" class="list-group list-group-flush">
+                                    <!-- Lista de episódios será inserida dinamicamente -->
+                                    <li class="list-group-item text-center">Carregando lista de episódios...</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-warning mt-3">
+                            <i class="bi bi-exclamation-triangle"></i> 
+                            Confirme os episódios acima antes de iniciar o download.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-success" id="confirm-download-btn">
+                            <i class="bi bi-download"></i> Iniciar Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
     </div>
 

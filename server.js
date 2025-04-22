@@ -484,6 +484,182 @@ function getAnimeEntryFromList(animeTitle) {
     }
 }
 
+// Endpoint para verificar episódios antes de baixar
+app.post('/api/animes/:id/check-episodes', async (req, res) => {
+    try {
+        const { title } = req.body;
+        
+        if (!title) {
+            return res.status(400).json({ error: 'Anime title is required' });
+        }
+        
+        console.log(`Verificando episódios para o anime: ${title}`);
+        
+        // Check if anime is legendado before downloading
+        const isLegendado = await checkAnimeIsLegendado(title);
+        if (!isLegendado) {
+            return res.status(400).json({ 
+                error: 'Este anime não está disponível legendado (apenas dublado)',
+                isLegendado: false 
+            });
+        }
+        
+        // Get anime entry from list
+        const animeEntry = getAnimeEntryFromList(title);
+        if (!animeEntry) {
+            return res.status(404).json({ error: 'Anime not found in list' });
+        }
+        
+        // Get anime URL
+        let animeUrl = '';
+        if (animeEntry.animeUrl) {
+            animeUrl = animeEntry.animeUrl;
+        } else {
+            // Format name for search
+            const searchTerm = title.trim()
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^\w\s-]/g, '')
+                .replace(/\s+/g, '-');
+            
+            animeUrl = `https://animefire.plus/animes/${searchTerm}-todos-os-episodios`;
+        }
+        
+        // Fetch episode list from anime URL
+        const response = await axios.get(animeUrl, {
+            headers: { 'User-Agent': USER_AGENT }
+        });
+        
+        const $ = cheerio.load(response.data);
+        const episodes = [];
+        
+        // Extract episodes - same logic as in anime-downloader.js
+        // Method 1: div_video_list (most common)
+        $('.div_video_list a').each((index, element) => {
+            const title = $(element).text().trim();
+            const url = $(element).attr('href');
+            
+            if (url && !episodes.some(ep => ep.url === url)) {
+                episodes.push({ 
+                    title: title || `Episódio ${index + 1}`, 
+                    url,
+                    number: extractEpisodeNumber(title, url)
+                });
+            }
+        });
+        
+        // Method 2: episode containers
+        if (episodes.length === 0) {
+            $('.episodeItem, .episode-item, [class*="episode"]').each((index, element) => {
+                const anchor = $(element).find('a');
+                const title = anchor.text().trim() || $(element).text().trim();
+                const url = anchor.attr('href');
+                
+                if (url && !episodes.some(ep => ep.url === url)) {
+                    episodes.push({ 
+                        title: title || `Episódio ${index + 1}`, 
+                        url,
+                        number: extractEpisodeNumber(title, url)
+                    });
+                }
+            });
+        }
+        
+        // Method 3: any link containing '/episodio/'
+        if (episodes.length === 0) {
+            $('a[href*="/episodio/"]').each((index, element) => {
+                const title = $(element).text().trim();
+                const url = $(element).attr('href');
+                
+                if (url && !episodes.some(ep => ep.url === url)) {
+                    episodes.push({ 
+                        title: title || `Episódio ${index + 1}`, 
+                        url,
+                        number: extractEpisodeNumber(title, url) 
+                    });
+                }
+            });
+        }
+        
+        // Sort episodes
+        episodes.sort((a, b) => a.number - b.number);
+        
+        // Filter episodes from start episode
+        const startEpisode = animeEntry.startEpisode || 1;
+        const filteredEpisodes = episodes.filter(ep => ep.number >= startEpisode);
+        
+        // Check for already downloaded episodes
+        const displayName = title.replace(/-/g, ' ');
+        const folderNames = [title, displayName]; // Possible folder names
+        
+        // Add folder aliases if they exist
+        if (ANIME_ALIASES[title]) {
+            folderNames.push(ANIME_ALIASES[title]);
+        }
+        
+        const downloadedEpisodes = [];
+        
+        for (const folderName of folderNames) {
+            const animeFolder = path.join(DOWNLOAD_FOLDER, folderName);
+            
+            if (fs.existsSync(animeFolder)) {
+                const files = fs.readdirSync(animeFolder);
+                
+                files.forEach(file => {
+                    if (file.endsWith('.mp4')) {
+                        const match = file.match(/Episódio\s*(\d+)/i);
+                        if (match && match[1]) {
+                            const epNumber = parseInt(match[1], 10);
+                            if (!downloadedEpisodes.includes(epNumber)) {
+                                downloadedEpisodes.push(epNumber);
+                            }
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Mark downloaded episodes
+        filteredEpisodes.forEach(episode => {
+            episode.downloaded = downloadedEpisodes.includes(episode.number);
+        });
+        
+        // Filter out episodes that need to be downloaded
+        const episodesToDownload = filteredEpisodes.filter(ep => !ep.downloaded);
+        
+        res.json({
+            animeTitle: displayName,
+            quality: animeEntry.quality || 'HD',
+            totalEpisodes: episodes.length,
+            downloadedEpisodes: downloadedEpisodes.sort((a, b) => a - b),
+            episodesToDownload: episodesToDownload
+        });
+    } catch (error) {
+        console.error('Error checking episodes:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Helper function to extract episode number
+function extractEpisodeNumber(title, url) {
+    // Try to extract from title first (most reliable)
+    let match = title && title.match(/Episódio\s*(\d+)/i);
+    if (match && match[1]) {
+        return parseInt(match[1], 10);
+    }
+    
+    // Try to extract from URL if title didn't work
+    if (url) {
+        match = url.match(/\/(\d+)(?:\/|$)/);
+        if (match && match[1]) {
+            return parseInt(match[1], 10);
+        }
+    }
+    
+    // Default to 0 if we couldn't extract
+    return 0;
+}
+
 // Atualizar status de download durante o processo
 function updateDownloadStatus(anime, episode, episodeProgress, speed, eta, queue) {
     try {
@@ -571,43 +747,114 @@ app.post('/api/animes/:id/download', async (req, res) => {
         fs.writeFileSync(tempAnimeListFile, animeLine);
         console.log(`Arquivo temporário criado: ${tempAnimeListFile}`);
         
-        // Spawn downloader process with the temp file
-        console.log(`Iniciando processo de download para: ${title}`);
-        const animeProcess = spawn('node', ['anime-downloader.js'], {
-            env: {...process.env, ANIME_LIST_FILE: tempAnimeListFile},
-            detached: true
-        });
+        // Clear any existing status before starting new download
+        // This ensures we see the verification process in the UI
+        const resetStatus = {
+            status: 'verifying',
+            current: {
+                name: title,
+                displayName: title.replace(/-/g, ' '),
+                status: 'verifying',
+                message: 'Verificando episódios disponíveis...',
+                progress: 0
+            },
+            queue: [],
+            completed: [],
+            lastUpdated: new Date().toISOString()
+        };
+        fs.writeFileSync(STATUS_FILE, JSON.stringify(resetStatus, null, 2));
         
-        // Store reference to the process
-        activeDownloadProcesses.push({
-            pid: animeProcess.pid,
-            title: title,
-            tempFile: tempAnimeListFile,
-            process: animeProcess
-        });
-        
-        animeProcess.stdout.on('data', (data) => {
-            console.log(`[${title}]: ${data}`);
-        });
-        
-        animeProcess.stderr.on('data', (data) => {
-            console.error(`[${title}] Error: ${data}`);
-        });
-        
-        animeProcess.on('close', (code) => {
-            console.log(`Download process for ${title} exited with code ${code}`);
-            // Clean up temp file
-            try {
-                if (fs.existsSync(tempAnimeListFile)) {
-                    fs.unlinkSync(tempAnimeListFile);
-                }
-            } catch (err) {
-                console.error(`Error removing temp file: ${err.message}`);
+        // Pre-fetch anime info to warm up connections and caches for long names
+        try {
+            const animeEntry = getAnimeEntryFromList(title);
+            let animeUrl = '';
+            
+            if (animeEntry && animeEntry.animeUrl) {
+                animeUrl = animeEntry.animeUrl;
+            } else {
+                // Format name for search
+                const searchTerm = title.trim()
+                    .toLowerCase()
+                    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                    .replace(/[^\w\s-]/g, '')
+                    .replace(/\s+/g, '-');
+                
+                animeUrl = `https://animefire.plus/animes/${searchTerm}-todos-os-episodios`;
             }
-        });
+            
+            // Pre-fetch in background - this warms up connections
+            console.log(`Pré-carregando informações do anime: ${animeUrl}`);
+            axios.get(animeUrl, {
+                headers: { 'User-Agent': USER_AGENT },
+                timeout: 30000 // Increase timeout for long anime names
+            }).catch(err => {
+                // Silently log any errors but continue with download attempt
+                console.log(`Aviso: Pré-carregamento falhou, mas continuando: ${err.message}`);
+            });
+        } catch (preFetchError) {
+            console.log(`Pré-carregamento falhou: ${preFetchError.message} - continuando mesmo assim`);
+        }
         
-        // Don't wait for process to finish
-        animeProcess.unref();
+        // Define a função para realizar a tentativa de download
+        const attemptDownload = (attempt = 1) => {
+            console.log(`Tentativa ${attempt} para iniciar download: ${title}`);
+            
+            // Spawn downloader process with the temp file
+            const animeProcess = spawn('node', ['anime-downloader.js'], {
+                env: {...process.env, 
+                    ANIME_LIST_FILE: tempAnimeListFile,
+                    NODE_OPTIONS: '--max-http-header-size=16384', // Aumentar limite de headers HTTP
+                    DOWNLOAD_ATTEMPT: attempt.toString()
+                },
+                detached: true
+            });
+            
+            // Store reference to the process
+            activeDownloadProcesses.push({
+                pid: animeProcess.pid,
+                title: title,
+                tempFile: tempAnimeListFile,
+                process: animeProcess,
+                attempt: attempt
+            });
+            
+            animeProcess.stdout.on('data', (data) => {
+                console.log(`[${title}]: ${data}`);
+            });
+            
+            animeProcess.stderr.on('data', (data) => {
+                console.error(`[${title}] Error: ${data}`);
+            });
+            
+            animeProcess.on('close', (code) => {
+                console.log(`Download process for ${title} exited with code ${code}`);
+                
+                // Se falhou na primeira tentativa para animes com nomes longos, tentar novamente
+                if (code !== 0 && attempt === 1 && title.length > 50) {
+                    console.log(`Falha na primeira tentativa para anime com nome longo (${title.length} caracteres). Tentando novamente...`);
+                    
+                    // Aguardar um momento antes de tentar novamente
+                    setTimeout(() => {
+                        attemptDownload(attempt + 1);
+                    }, 3000);
+                } else {
+                    // Clean up temp file quando finalizar todas tentativas
+                    try {
+                        if (fs.existsSync(tempAnimeListFile)) {
+                            fs.unlinkSync(tempAnimeListFile);
+                        }
+                    } catch (err) {
+                        console.error(`Error removing temp file: ${err.message}`);
+                    }
+                }
+            });
+            
+            // Don't wait for process to finish
+            animeProcess.unref();
+        };
+        
+        // Iniciar a primeira tentativa
+        attemptDownload();
         
         res.json({ success: true, message: 'Download started' });
     } catch (error) {

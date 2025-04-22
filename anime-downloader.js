@@ -184,9 +184,24 @@ function normalizeAnimeNameForSearch(name) {
 // Função principal
 async function main() {
     try {
-        // Ler o arquivo de lista de animes
-        console.log(`Lendo lista de animes de: ${ANIME_LIST_FILE}`);
+        // Ler o arquivo de lista de animes (com verificação de existência)
+        console.log(`Tentando ler lista de animes de: ${ANIME_LIST_FILE}`);
+        
+        // Verificar se o arquivo existe antes de tentar ler
+        if (!fs.existsSync(ANIME_LIST_FILE)) {
+            console.error(`Erro: Arquivo de lista de animes não encontrado: ${ANIME_LIST_FILE}`);
+            console.log('Isso pode acontecer se o download foi cancelado e o arquivo temporário foi removido.');
+            process.exit(1);
+            return;
+        }
+        
         const animeListContent = fs.readFileSync(ANIME_LIST_FILE, 'utf8');
+        
+        if (!animeListContent || animeListContent.trim() === '') {
+            console.error('Erro: Arquivo de lista de animes está vazio.');
+            process.exit(1);
+            return;
+        }
         
         // Extrair informações dos animes do arquivo
         const animeEntries = animeListContent
@@ -194,10 +209,6 @@ async function main() {
             .map(line => line.trim())
             .filter(line => line && !line.startsWith('#'))
             .map(line => {
-                // Formatos possíveis:
-                // 1. título | qualidade | episódio | "título original"
-                // 2. título | qualidade | episódio | "URL do anime"
-                // 3. título | qualidade | episódio
                 let parts = line.split('|').map(part => part.trim());
                 const name = parts[0]; // Nome normalizado para armazenamento/pesquisa
                 
@@ -239,45 +250,156 @@ async function main() {
         console.log(`- Episódio inicial padrão: ${CONFIG.startFromEpisode}`);
         console.log(`- Pasta de downloads: ${DOWNLOAD_FOLDER}`);
         
-        // Adicionar animes à fila de downloads
-        downloadStatus.queue = animeEntries.map(entry => ({
-            name: entry.name,
-            displayName: entry.name.replace(/-/g, ' '),
-            quality: entry.quality,
-            startEpisode: entry.startEpisode,
-            status: 'queued'
-        }));
+        // Inicializar fila vazia antes de processar animes
+        downloadStatus.queue = [];
         
+        console.log("\nVerificando episódios disponíveis para download...");
+        
+        // Verificar todos os animes e seus episódios antes de iniciar qualquer download
+        for (const entry of animeEntries) {
+            try {
+                console.log(`\nVerificando anime: ${entry.displayName || entry.name}`);
+                
+                // Buscar informações do anime
+                let animeInfo;
+                if (entry.animeUrl) {
+                    try {
+                        const response = await axios.get(entry.animeUrl, {
+                            headers: { 'User-Agent': USER_AGENT }
+                        });
+                        
+                        if (response.status === 200) {
+                            const $ = cheerio.load(response.data);
+                            const title = $('h1.anime-title, h2.anime-title, .anime-title').first().text().trim() || entry.name;
+                            
+                            animeInfo = {
+                                title: title,
+                                url: entry.animeUrl
+                            };
+                        }
+                    } catch (error) {
+                        console.error(`Erro ao acessar URL do anime: ${error.message}`);
+                    }
+                } else {
+                    const searchName = normalizeAnimeNameForSearch(entry.name);
+                    animeInfo = await findAnime(searchName);
+                }
+                
+                if (!animeInfo) {
+                    console.log(`Anime não encontrado: ${entry.name}. Pulando...`);
+                    continue;
+                }
+                
+                // Criar pasta para o anime (para verificar arquivos existentes)
+                const animeFolderName = sanitize(animeInfo.title.replace(/-/g, ' '));
+                const animeFolder = path.join(DOWNLOAD_FOLDER, animeFolderName);
+                
+                // Buscar episódios
+                const episodes = await getEpisodes(animeInfo.url);
+                
+                if (episodes.length === 0) {
+                    console.log(`Nenhum episódio encontrado para ${animeInfo.title}. Pulando...`);
+                    continue;
+                }
+                
+                // Filtrar apenas episódios a partir do episódio inicial configurado
+                const filteredEpisodes = episodes.filter(ep => {
+                    const episodeNumber = extractEpisodeNumber(ep.title, ep.url);
+                    return episodeNumber >= entry.startEpisode;
+                });
+                
+                if (filteredEpisodes.length === 0) {
+                    console.log(`Nenhum episódio a partir do ${entry.startEpisode} encontrado para ${animeInfo.title}. Pulando...`);
+                    continue;
+                }
+                
+                // Verificar episódios já baixados
+                const episodesToDownload = [];
+                
+                for (const episode of filteredEpisodes) {
+                    const episodeNumber = extractEpisodeNumber(episode.title, episode.url);
+                    const fileName = `${animeFolderName} - Episódio ${episodeNumber}.mp4`;
+                    const filePath = path.join(animeFolder, fileName);
+                    
+                    // Verificar se o arquivo já existe
+                    if (fs.existsSync(filePath)) {
+                        console.log(`Episódio ${episodeNumber} já existe. Pulando...`);
+                    } else {
+                        episodesToDownload.push({
+                            number: episodeNumber,
+                            title: episode.title,
+                            url: episode.url
+                        });
+                    }
+                }
+                
+                // Adicionar à fila apenas episódios que realmente serão baixados
+                if (episodesToDownload.length > 0) {
+                    console.log(`Adicionando ${episodesToDownload.length} episódios à fila para ${animeInfo.title}`);
+                    
+                    downloadStatus.queue.push({
+                        name: entry.name,
+                        displayName: animeInfo.title,
+                        quality: entry.quality,
+                        startEpisode: entry.startEpisode,
+                        status: 'queued',
+                        episodes: episodesToDownload,
+                        totalEpisodes: episodesToDownload.length,
+                        animeUrl: animeInfo.url
+                    });
+                } else {
+                    console.log(`Todos os episódios já foram baixados para ${animeInfo.title}.`);
+                }
+            } catch (error) {
+                console.error(`Erro ao verificar anime ${entry.name}: ${error.message}`);
+            }
+        }
+        
+        // Salvar a fila atualizada com os episódios realmente necessários
         saveDownloadStatus();
         
-        // Processar cada anime da lista
-        for (const [index, animeEntry] of animeEntries.entries()) {
+        // Verificar se há episódios para baixar
+        if (downloadStatus.queue.length === 0) {
+            console.log("\nNenhum episódio novo para baixar. Finalizando...");
+            process.exit(0);
+        }
+        
+        console.log(`\nTotal de animes na fila: ${downloadStatus.queue.length}`);
+        
+        // Aguardar confirmação do usuário para continuar (apenas se iniciado de forma interativa)
+        // A confirmação é feita pelo front-end antes de iniciar o download
+        console.log("\nAguardando processamento dos downloads...");
+        
+        // Processar cada anime da fila
+        for (let i = 0; i < downloadStatus.queue.length; i++) {
             // Check for cancellation before processing each anime
             if (checkIfCancelled()) break;
-
-            console.log(`\n[${index + 1}/${animeEntries.length}] Processando: ${animeEntry.name.replace(/-/g, ' ')}`);
-            console.log(`- Qualidade selecionada: ${animeEntry.quality}`);
-            console.log(`- Começando do episódio: ${animeEntry.startEpisode}`);
+            
+            const queueItem = downloadStatus.queue[i];
+            console.log(`\n[${i+1}/${downloadStatus.queue.length}] Processando: ${queueItem.displayName}`);
             
             // Atualizar status do download atual
             downloadStatus.current = {
-                name: animeEntry.name,
-                displayName: animeEntry.name.replace(/-/g, ' '),
-                quality: animeEntry.quality,
-                startEpisode: animeEntry.startEpisode,
+                name: queueItem.name,
+                displayName: queueItem.displayName,
+                quality: queueItem.quality,
+                startEpisode: queueItem.startEpisode,
                 status: 'downloading',
                 progress: 0,
-                startTime: new Date().toISOString()
+                startTime: new Date().toISOString(),
+                episodes: queueItem.episodes,
+                animeUrl: queueItem.animeUrl
             };
             
-            // Remover da fila
+            // Remover o item atual da fila
             downloadStatus.queue = downloadStatus.queue.filter(
-                item => item.name !== animeEntry.name
+                item => item.name !== queueItem.name
             );
             
             saveDownloadStatus();
             
-            await processAnime(animeEntry);
+            // Processar o anime atual usando as informações já verificadas
+            await processAnimeFromQueue(queueItem);
             
             // Adicionar aos downloads concluídos
             downloadStatus.current.status = 'completed';
@@ -302,158 +424,52 @@ async function main() {
     }
 }
 
-// Função para processar cada anime
-async function processAnime(animeEntry) {
+// Função para processar cada anime da fila
+async function processAnimeFromQueue(queueItem) {
     try {
-        // Nome normalizado para busca (já deve estar normalizado no arquivo, mas para garantir...)
-        const searchName = normalizeAnimeNameForSearch(animeEntry.name);
-        // Nome para exibição (com espaços em vez de hífens)
-        const displayName = animeEntry.name.replace(/-/g, ' ');
-        
-        console.log(`\nBuscando anime: ${displayName}...`);
-        
-        // Atualizar progresso
-        updateProgress(animeEntry.name, 'searching', 0, null, { displayName });
-        
-        let animeInfo;
-        
-        // PRIORIDADE: Se temos uma URL direta, usá-la SEMPRE em vez de buscar por nome
-        if (animeEntry.animeUrl) {
-            console.log(`URL direta fornecida para o anime: ${animeEntry.animeUrl}`);
-            console.log(`IMPORTANTE: Usando exclusivamente a URL fornecida para obter dados do anime`);
-            
-            try {
-                const response = await axios.get(animeEntry.animeUrl, {
-                    headers: { 'User-Agent': USER_AGENT }
-                });
-                
-                if (response.status === 200) {
-                    const $ = cheerio.load(response.data);
-                    const title = $('h1.anime-title, h2.anime-title, .anime-title').first().text().trim() || animeEntry.name;
-                    
-                    animeInfo = {
-                        title: title,
-                        url: animeEntry.animeUrl
-                    };
-                    
-                    console.log(`Informações do anime obtidas com sucesso a partir da URL fornecida`);
-                } else {
-                    console.error(`Erro ao acessar URL: código ${response.status}`);
-                    updateProgress(animeEntry.name, 'error', 0, `Erro ao acessar URL: código ${response.status}`);
-                    return;
-                }
-            } catch (error) {
-                console.error(`Erro ao acessar URL do anime: ${error.message}`);
-                updateProgress(animeEntry.name, 'error', 0, `Erro ao acessar URL: ${error.message}`);
-                return;
-            }
-        } else {
-            console.log(`AVISO: Nenhuma URL direta fornecida. Recomenda-se sempre fornecer a URL direta do anime.`);
-            console.log(`Tentando buscar pelo nome: ${searchName} (método menos confiável)`);
-            animeInfo = await findAnime(searchName);
-        }
-        
-        if (!animeInfo) {
-            console.log('Anime não encontrado. Verifique o nome e tente novamente.');
-            updateProgress(animeEntry.name, 'error', 0, 'Anime não encontrado');
-            return;
-        }
-        
-        console.log(`\nAnime encontrado: ${animeInfo.title}`);
-        console.log(`URL: ${animeInfo.url}\n`);
-        
-        // Criar pasta para o anime - substituindo hifens por espaços
-        const animeFolderName = sanitize(animeInfo.title.replace(/-/g, ' '));
-        
+        const animeFolderName = sanitize(queueItem.displayName.replace(/-/g, ' '));
         const animeFolder = path.join(DOWNLOAD_FOLDER, animeFolderName);
+        
         if (!fs.existsSync(animeFolder)) {
             fs.mkdirSync(animeFolder, { recursive: true });
             console.log(`Pasta criada para o anime: ${animeFolderName}`);
         }
         
-        // Criar arquivo de log para este anime
         const logFile = path.join(animeFolder, '_download_log.txt');
-        const logStream = fs.createWriteStream(logFile, {flags: 'a'});
-        let logEntry = `\n[${new Date().toISOString()}] Iniciando download de: ${animeInfo.title} (${animeInfo.url})\n`;
-        logEntry += `Qualidade: ${animeEntry.quality}, Começando do episódio: ${animeEntry.startEpisode}\n`;
+        const logStream = fs.createWriteStream(logFile, { flags: 'a' });
+        let logEntry = `\n[${new Date().toISOString()}] Iniciando download de: ${queueItem.displayName} (${queueItem.animeUrl})\n`;
+        logEntry += `Qualidade: ${queueItem.quality}, Começando do episódio: ${queueItem.startEpisode}\n`;
         logStream.write(logEntry);
         
-        // Buscar episódios diretamente da URL do anime
-        console.log('Buscando episódios...');
-        updateProgress(animeEntry.name, 'fetching_episodes', 5);
-        const episodes = await getEpisodes(animeInfo.url);
-        
-        if (episodes.length === 0) {
-            console.log('Nenhum episódio encontrado.');
-            logStream.write('Nenhum episódio encontrado.\n');
-            logStream.end();
-            updateProgress(animeEntry.name, 'error', 0, 'Nenhum episódio encontrado');
-            return;
-        }
-        
-        console.log(`Total de episódios encontrados: ${episodes.length}\n`);
-        logStream.write(`Total de episódios encontrados: ${episodes.length}\n`);
-        
-        // Filtrar episódios a partir do episódio inicial definido
-        const filteredEpisodes = episodes.filter(ep => {
-            const episodeNumber = extractEpisodeNumber(ep.title, ep.url);
-            return episodeNumber >= animeEntry.startEpisode;
-        });
-        
-        console.log(`Episódios a baixar: ${filteredEpisodes.length} (a partir do ${animeEntry.startEpisode})\n`);
-        logStream.write(`Episódios a baixar: ${filteredEpisodes.length} (a partir do ${animeEntry.startEpisode})\n`);
-        
-        updateProgress(animeEntry.name, 'downloading', 10, null, {
-            totalEpisodes: filteredEpisodes.length,
-            currentEpisode: 0
-        });
-        
-        // Download de cada episódio
-        for (const [index, episode] of filteredEpisodes.entries()) {
-            // Check for cancellation before each episode
+        for (const [index, episode] of queueItem.episodes.entries()) {
             if (checkIfCancelled()) break;
-
-            // Extrair o número do episódio do título ou da URL
-            const episodeNumber = extractEpisodeNumber(episode.title, episode.url);
             
-            // Atualizar progresso baseado no episódio atual
-            const progressPercent = 10 + Math.round((index / filteredEpisodes.length) * 90);
-            updateProgress(animeEntry.name, 'downloading_episode', progressPercent, null, {
-                totalEpisodes: filteredEpisodes.length,
-                currentEpisode: index + 1,
-                episodeNumber: episodeNumber
-            });
-            
-            // Formatar nome do arquivo - garantir consistência com o nome da pasta
+            const episodeNumber = episode.number;
             const fileName = `${animeFolderName} - Episódio ${episodeNumber}.mp4`;
             const filePath = path.join(animeFolder, fileName);
             const tempFilePath = path.join(animeFolder, `${fileName}.temp`);
             
-            // Verificar se o arquivo já existe
             if (fs.existsSync(filePath)) {
-                const message = `[${index+1}/${filteredEpisodes.length}] Episódio ${episodeNumber} já existe. Pulando...`;
+                const message = `[${index + 1}/${queueItem.episodes.length}] Episódio ${episodeNumber} já existe. Pulando...`;
                 console.log(message);
                 logStream.write(`${message}\n`);
                 continue;
             }
             
-            const startMessage = `[${index+1}/${filteredEpisodes.length}] Baixando episódio ${episodeNumber} em qualidade ${animeEntry.quality}...`;
+            const startMessage = `[${index + 1}/${queueItem.episodes.length}] Baixando episódio ${episodeNumber} em qualidade ${queueItem.quality}...`;
             console.log(startMessage);
             logStream.write(`${startMessage}\n`);
             
-            // Obter links de download
             const downloadLinks = await getDownloadLinks(episode.url);
-
+            
             if (downloadLinks.length === 0) {
                 const noLinksMessage = `Nenhum link de download encontrado para o episódio ${episodeNumber}. Criando atalho para visualização online...`;
                 console.log(noLinksMessage);
                 logStream.write(`${noLinksMessage}\n`);
                 
-                // Criar arquivo de atalho para assistir online com nome consistente
                 const shortcutFileName = `${animeFolderName} - Episódio ${episodeNumber} (Assistir Online).url`;
                 const shortcutFilePath = path.join(animeFolder, shortcutFileName);
                 
-                // Formato de arquivo .url para Windows
                 const shortcutContent = `[InternetShortcut]
 URL=${episode.url}
 IconIndex=0
@@ -472,55 +488,47 @@ IconIndex=0
                 
                 continue;
             }
-                        
-            // Selecionar link de acordo com a qualidade escolhida
+            
             let selectedLink = null;
             
-            // Procurar link com a qualidade especificada
             for (const link of downloadLinks) {
-                if (animeEntry.quality === 'SD' && (link.quality.toUpperCase().includes('SD') || link.url.includes('/sd/'))) {
+                if (queueItem.quality === 'SD' && (link.quality.toUpperCase().includes('SD') || link.url.includes('/sd/'))) {
                     selectedLink = link;
                     break;
                 }
-                if (animeEntry.quality === 'HD' && (link.quality.toUpperCase().includes('HD') || link.url.includes('/hd/'))) {
+                if (queueItem.quality === 'HD' && (link.quality.toUpperCase().includes('HD') || link.url.includes('/hd/'))) {
                     selectedLink = link;
                     break;
                 }
             }
             
-            // Se não encontrou link com a qualidade específica, usa o primeiro disponível
             if (!selectedLink) {
-                console.log(`Qualidade ${animeEntry.quality} não encontrada, usando qualidade disponível.`);
+                console.log(`Qualidade ${queueItem.quality} não encontrada, usando qualidade disponível.`);
                 selectedLink = downloadLinks[0];
             }
             
             console.log(`Link selecionado: ${selectedLink.quality} - ${selectedLink.url}`);
             
-            // Baixar o arquivo para um arquivo temporário primeiro
             try {
-                // Adicionar arquivo temporário à lista de rastreamento
                 tempFiles.add(tempFilePath);
                 
-                // Download do episódio
                 console.log(`Baixando ${selectedLink.quality}: ${selectedLink.url}`);
-                await downloadFile(selectedLink.url, tempFilePath, animeEntry.name);
+                await downloadFile(selectedLink.url, tempFilePath, queueItem.name);
                 
-                // Mover o arquivo temporário para o destino final
                 fs.renameSync(tempFilePath, filePath);
                 
-                // Remover o arquivo temporário da lista de rastreamento
                 tempFiles.delete(tempFilePath);
                 
                 const successMessage = `✓ Episódio ${episodeNumber} baixado com sucesso! [${selectedLink.quality}]`;
                 console.log(successMessage);
                 logStream.write(`${successMessage}\n`);
                 
-                // After each successful episode, mark the progress correctly
-                updateProgress(animeEntry.name, 'downloading', progressPercent, null, {
-                    totalEpisodes: filteredEpisodes.length,
+                const progressPercent = Math.round(((index + 1) / queueItem.episodes.length) * 100);
+                updateProgress(queueItem.name, 'downloading', progressPercent, null, {
+                    totalEpisodes: queueItem.episodes.length,
                     currentEpisode: index + 1,
                     episodeNumber: episodeNumber,
-                    downloadPercent: 100  // Mark this episode as 100% complete
+                    downloadPercent: 100
                 });
                 
             } catch (error) {
@@ -528,37 +536,33 @@ IconIndex=0
                 console.error(errorMessage);
                 logStream.write(`${errorMessage}\n`);
                 
-                // Atualizar progresso com erro
-                updateProgress(animeEntry.name, 'error_episode', progressPercent, `Erro ao baixar episódio ${episodeNumber}: ${error.message}`, {
-                    totalEpisodes: filteredEpisodes.length,
+                updateProgress(queueItem.name, 'error_episode', 0, `Erro ao baixar episódio ${episodeNumber}: ${error.message}`, {
+                    totalEpisodes: queueItem.episodes.length,
                     currentEpisode: index + 1,
                     episodeNumber: episodeNumber
                 });
                 
-                // Limpar arquivo temporário se existir
                 if (fs.existsSync(tempFilePath)) {
                     fs.unlinkSync(tempFilePath);
                     tempFiles.delete(tempFilePath);
                 }
                 
-                // Limpar arquivo final se existir (parcialmente)
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
                 }
             }
         }
         
-        const completeMessage = `\nDownload de "${animeInfo.title}" concluído!\n`;
+        const completeMessage = `\nDownload de "${queueItem.displayName}" concluído!\n`;
         console.log(completeMessage);
         logStream.write(completeMessage);
         logStream.end();
         
-        // Mark as 100% complete when all episodes are finished
-        updateProgress(animeEntry.name, 'completed', 100);
+        updateProgress(queueItem.name, 'completed', 100);
         
     } catch (error) {
         console.error('Erro ao processar anime:', error);
-        updateProgress(animeEntry.name, 'error', 0, `Erro ao processar anime: ${error.message}`);
+        updateProgress(queueItem.name, 'error', 0, `Erro ao processar anime: ${error.message}`);
     }
 }
 
@@ -566,7 +570,7 @@ IconIndex=0
 function updateProgress(animeName, status, percent, error = null, details = {}) {
     if (downloadStatus.current && downloadStatus.current.name === animeName) {
         downloadStatus.current.status = status;
-        downloadStatus.current.progress = percent; // This updates the main progress
+        downloadStatus.current.progress = percent;
         
         if (error) downloadStatus.current.errorMessage = error;
         if (details) downloadStatus.current.details = details;
@@ -578,14 +582,12 @@ function updateProgress(animeName, status, percent, error = null, details = {}) 
 // Função para buscar o anime pelo nome
 async function findAnime(animeName) {
     try {
-        // Formatar o nome para URL
         const searchTerm = animeName.trim()
                                   .toLowerCase()
-                                  .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // Remove acentos
+                                  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
                                   .replace(/[^\w\s-]/g, '')
                                   .replace(/\s+/g, '-');
         
-        // Método 1: Tentar pesquisa no site
         const searchUrl = `https://animefire.plus/pesquisar/${encodeURIComponent(searchTerm)}`;
         
         console.log(`Pesquisando em: ${searchUrl}`);
@@ -596,10 +598,8 @@ async function findAnime(animeName) {
         
         const $ = cheerio.load(response.data);
         
-        // Buscar resultados na página
         const results = [];
         
-        // Tentar com o seletor específico .minWDanime
         $('.minWDanime').each((index, element) => {
             const title = $(element).find('.text-block h3.animeTitle').text().trim();
             const url = $(element).find('a').attr('href');
@@ -609,9 +609,7 @@ async function findAnime(animeName) {
             }
         });
         
-        // Se não encontrou nada, tentar seletores alternativos
         if (results.length === 0) {
-            // Tentar cards de anime genéricos
             $('.card, .card-anime').each((index, element) => {
                 const title = $(element).find('h3, .animeTitle, .title').text().trim();
                 const url = $(element).find('a').attr('href');
@@ -621,7 +619,6 @@ async function findAnime(animeName) {
                 }
             });
             
-            // Último recurso: links que parecem ser de animes
             if (results.length === 0) {
                 $('a[href*="/animes/"]').each((index, element) => {
                     const url = $(element).attr('href');
@@ -634,9 +631,7 @@ async function findAnime(animeName) {
             }
         }
         
-        // Se encontrou resultados, retorna o mais relevante
         if (results.length > 0) {
-            // Classificar por relevância (comparando com o nome do anime)
             const searchTerms = animeName.toLowerCase().split(/\s+/);
             
             results.sort((a, b) => {
@@ -648,7 +643,6 @@ async function findAnime(animeName) {
             return results[0];
         }
         
-        // Método 2: Tentar URL direta se a pesquisa não encontrou resultados
         console.log('Pesquisa não encontrou resultados. Tentando URL direta...');
         
         const directUrl = `https://animefire.plus/animes/${searchTerm}-todos-os-episodios`;
@@ -686,7 +680,6 @@ async function getEpisodes(animeUrl) {
         const $ = cheerio.load(response.data);
         const episodes = [];
         
-        // Primeiro método: div_video_list (mais comum)
         $('.div_video_list a').each((index, element) => {
             const title = $(element).text().trim();
             const url = $(element).attr('href');
@@ -696,7 +689,6 @@ async function getEpisodes(animeUrl) {
             }
         });
         
-        // Segundo método: containers de episódios
         if (episodes.length === 0) {
             $('.episodeItem, .episode-item, [class*="episode"]').each((index, element) => {
                 const anchor = $(element).find('a');
@@ -709,7 +701,6 @@ async function getEpisodes(animeUrl) {
             });
         }
 
-        // Terceiro método: qualquer link que contenha '/episodio/'
         if (episodes.length === 0) {
             $('a[href*="/episodio/"]').each((index, element) => {
                 const title = $(element).text().trim();
@@ -721,7 +712,6 @@ async function getEpisodes(animeUrl) {
             });
         }
         
-        // Ordenar episódios (ordem crescente)
         episodes.sort((a, b) => {
             const numA = extractEpisodeNumber(a.title, a.url);
             const numB = extractEpisodeNumber(b.title, b.url);
@@ -742,7 +732,6 @@ async function getDownloadLinks(episodeUrl) {
         console.log(`Buscando links de download para: ${episodeUrl}`);
         const downloadLinks = [];
         
-        // Método 1: Verificar página do episódio por links diretos
         try {
             const response = await axios.get(episodeUrl, {
                 headers: { 'User-Agent': USER_AGENT }
@@ -750,14 +739,12 @@ async function getDownloadLinks(episodeUrl) {
             
             const $ = cheerio.load(response.data);
             
-            // Buscar no HTML por URLs de MP4
             const html = response.data;
             const mp4UrlRegex = /https?:\/\/[^"'\s]+\.mp4/g;
             const matches = html.match(mp4UrlRegex);
             
             if (matches) {
                 matches.forEach(url => {
-                    // Verifique se é uma URL válida
                     if (url && url.startsWith('http')) {
                         downloadLinks.push({
                             url: url,
@@ -772,12 +759,9 @@ async function getDownloadLinks(episodeUrl) {
             console.error(`Erro ao buscar links na página do episódio: ${error.message}`);
         }
         
-        // Método 2: Tentar página de download específica
         if (downloadLinks.length === 0) {
-            // Construir URL da página de download
             let downloadPageUrl = episodeUrl.replace('/episodio/', '/download/');
             
-            // Se a substituição não funcionou, tenta construir manualmente
             if (downloadPageUrl === episodeUrl) {
                 const urlParts = episodeUrl.split('/');
                 const animeSlug = urlParts[urlParts.length - 2];
@@ -793,7 +777,6 @@ async function getDownloadLinks(episodeUrl) {
                 
                 const $download = cheerio.load(downloadResponse.data);
                 
-                // Buscar links de download de SD e HD
                 $download('a').each((index, element) => {
                     const url = $download(element).attr('href');
                     const text = $download(element).text().trim().toUpperCase();
@@ -822,13 +805,11 @@ async function getDownloadLinks(episodeUrl) {
 function calculateRelevance(title, searchTerms) {
     let relevance = 0;
     
-    // Mais pontos se o título começar com algum dos termos de busca
     for (const term of searchTerms) {
         if (title.startsWith(term)) {
             relevance += 10;
         }
         
-        // Pontos adicionais para cada ocorrência de termos de busca
         const matches = title.split(term).length - 1;
         relevance += matches * 2;
     }
@@ -838,7 +819,6 @@ function calculateRelevance(title, searchTerms) {
 
 // Função para extrair número do episódio
 function extractEpisodeNumber(title, url) {
-    // Tentar extrair da URL primeiro (geralmente mais confiável)
     if (url) {
         const urlParts = url.split('/');
         const lastPart = urlParts[urlParts.length - 1];
@@ -847,23 +827,19 @@ function extractEpisodeNumber(title, url) {
         }
     }
     
-    // Tentar extrair do título
     if (title) {
-        // Padrão comum: "Episódio X" ou "Ep X" ou apenas número
         const match = title.match(/(?:episódio|ep|episode)\s*(\d+)/i) || title.match(/(\d+)/);
         if (match && match[1]) {
             return parseInt(match[1]);
         }
     }
     
-    // Se não conseguir extrair, retorna 0 (será tratado como especial ou prólogo)
     return 0;
 }
 
 // Função para fazer download de arquivo com relatório de progresso
 function downloadFile(url, destination, animeName) {
     return new Promise((resolve, reject) => {
-        // Verificar se a URL é válida
         if (!url || !url.startsWith('http')) {
             return reject(new Error('URL de download inválida'));
         }
@@ -871,20 +847,15 @@ function downloadFile(url, destination, animeName) {
         console.log(`Iniciando download de: ${url}`);
         console.log(`Destino: ${destination}`);
         
-        // Adicionar arquivo à lista de arquivos temporários
         tempFiles.add(destination);
         
-        // Criar fluxo de escrita para o arquivo
         const fileStream = fs.createWriteStream(destination);
         
-        // Para armazenar a requisição atual
         let currentRequest = null;
         
-        // Função para limpar recursos e rejeitar
         const cleanupAndReject = (error) => {
             fileStream.close();
             
-            // Remover arquivo incompleto
             try {
                 if (fs.existsSync(destination)) {
                     fs.unlinkSync(destination);
@@ -893,17 +864,13 @@ function downloadFile(url, destination, animeName) {
                 console.error(`Erro ao remover arquivo incompleto: ${err.message}`);
             }
             
-            // Remover da lista de arquivos temporários
             tempFiles.delete(destination);
             
-            // Rejeitar a promise
             reject(error);
         };
         
-        // Usar http ou https baseado na URL
         const httpModule = url.startsWith('https') ? https : require('http');
         
-        // Fazer a requisição para baixar o arquivo
         try {
             currentRequest = httpModule.get(url, {
                 headers: { 
@@ -911,24 +878,20 @@ function downloadFile(url, destination, animeName) {
                     'Referer': 'https://animefire.plus/'
                 }
             }, (response) => {
-                // Verificar se o status é de redirecionamento
                 if (response.statusCode === 301 || response.statusCode === 302) {
                     fileStream.close();
                     tempFiles.delete(destination);
                     
-                    // Se for redirecionamento, tentar a nova URL
                     console.log(`Redirecionamento para: ${response.headers.location}`);
                     return downloadFile(response.headers.location, destination, animeName)
                         .then(resolve)
                         .catch(reject);
                 }
                 
-                // Verificar se o download está OK
                 if (response.statusCode !== 200) {
                     return cleanupAndReject(new Error(`Código de status inválido: ${response.statusCode}`));
                 }
                 
-                // Mostrar progresso do download
                 const totalSize = parseInt(response.headers['content-length'], 10);
                 let downloadedSize = 0;
                 let lastLoggedPercent = 0;
@@ -941,21 +904,17 @@ function downloadFile(url, destination, animeName) {
                             console.log(`Progresso: ${percent}%`);
                             lastLoggedPercent = percent;
                             
-                            // Atualizar o status de download com o progresso
                             if (downloadStatus.current && downloadStatus.current.name === animeName) {
-                                // Update both the episode-specific progress and the main progress
                                 if (downloadStatus.current.details) {
                                     if (!downloadStatus.current.details.downloadPercent) {
                                         downloadStatus.current.details.downloadPercent = 0;
                                     }
                                     downloadStatus.current.details.downloadPercent = percent;
                                 }
-                                // Also update the main progress for UI display
                                 downloadStatus.current.progress = percent;
                                 saveDownloadStatus();
                             }
                             
-                            // Check for cancellation every 5% progress
                             if (checkIfCancelled()) {
                                 cleanupAndReject(new Error('Download cancelled by user'));
                             }
@@ -963,14 +922,11 @@ function downloadFile(url, destination, animeName) {
                     }
                 });
                 
-                // Pipe da resposta para o arquivo
                 response.pipe(fileStream);
                 
-                // Evento de conclusão
                 fileStream.on('finish', () => {
                     fileStream.close();
                     tempFiles.delete(destination);
-                    // Set progress to 100% when finished
                     if (downloadStatus.current && downloadStatus.current.name === animeName) {
                         if (downloadStatus.current.details) {
                             downloadStatus.current.details.downloadPercent = 100;
@@ -986,25 +942,22 @@ function downloadFile(url, destination, animeName) {
                 });
             });
             
-            // Tratar erros na requisição
             currentRequest.on('error', (err) => {
                 cleanupAndReject(err);
             });
             
-            // Definir timeout
             currentRequest.setTimeout(60000, () => {
                 currentRequest.destroy();
                 cleanupAndReject(new Error('Timeout na requisição de download'));
             });
             
-            // Add a timeout to check for cancellation periodically
             const cancellationCheck = setInterval(() => {
                 if (checkIfCancelled()) {
                     clearInterval(cancellationCheck);
-                    currentRequest.abort(); // Abort the HTTP request
+                    currentRequest.abort();
                     cleanupAndReject(new Error('Download cancelled by user'));
                 }
-            }, 1000); // Check every second
+            }, 1000);
             
             currentRequest.on('close', () => {
                 clearInterval(cancellationCheck);

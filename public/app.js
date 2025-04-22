@@ -76,12 +76,23 @@ const popupQueueList = document.getElementById('popup-queue-list');
 const popupQueueCount = document.getElementById('popup-queue-count');
 const popupCancelDownloadBtn = document.getElementById('popup-cancel-download-btn');
 
+// Modal de confirmação de episódios
+const confirmEpisodesModal = new bootstrap.Modal(document.getElementById('confirm-episodes-modal'));
+const confirmAnimeTitle = document.getElementById('confirm-anime-title');
+const confirmAnimeQuality = document.getElementById('confirm-anime-quality');
+const confirmTotalEpisodes = document.getElementById('confirm-total-episodes');
+const confirmDownloadedEpisodes = document.getElementById('confirm-downloaded-episodes');
+const confirmEpisodesList = document.getElementById('confirm-episodes-list');
+const confirmEpisodesCount = document.getElementById('confirm-episodes-count');
+const confirmDownloadBtn = document.getElementById('confirm-download-btn');
+
 // State
 let animes = [];
 let config = {};
 let isEditing = false;
 let currentPath = "";
 let homeRefreshInterval = null;
+let currentAnimeToDownload = null; // Para armazenar o anime atual para download após confirmação
 
 // Add watched episodes variable
 let watchedEpisodes = {};
@@ -701,7 +712,7 @@ async function deleteAnime(anime) {
 // Start anime download
 async function startAnimeDownload(anime) {
     try {
-        console.log(`Iniciando download para: ${anime.title}`);
+        console.log(`Verificando episódios disponíveis para: ${anime.title}`);
         
         if (!anime.animeUrl) {
             const confirmUrl = confirm("Este anime não tem URL definida. Recomendamos editar o anime e adicionar a URL antes de baixar. Deseja continuar mesmo assim?");
@@ -711,10 +722,107 @@ async function startAnimeDownload(anime) {
             }
         }
         
-        const response = await fetch(`${ANIMES_URL}/${anime.id}/download`, {
+        // Salvar referência ao anime atual para ser usado após confirmação
+        currentAnimeToDownload = anime;
+        
+        // Mostrar estado de carregamento no modal de confirmação
+        confirmAnimeTitle.textContent = anime.displayTitle || anime.title;
+        confirmAnimeQuality.textContent = anime.quality;
+        confirmTotalEpisodes.textContent = "Carregando...";
+        confirmDownloadedEpisodes.textContent = "Verificando...";
+        confirmEpisodesList.innerHTML = `
+            <li class="list-group-item text-center">
+                <div class="spinner-border spinner-border-sm text-primary me-2" role="status">
+                    <span class="visually-hidden">Carregando...</span>
+                </div>
+                Verificando episódios disponíveis...
+            </li>
+        `;
+        confirmEpisodesCount.textContent = "0";
+        
+        // Mostrar modal de confirmação
+        confirmEpisodesModal.show();
+        
+        // Buscar informações sobre episódios disponíveis e já baixados
+        const response = await fetch(`${ANIMES_URL}/${anime.id}/check-episodes`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title: anime.title })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Erro ao verificar episódios');
+        }
+        
+        const episodeData = await response.json();
+        console.log('Dados de episódios:', episodeData);
+        
+        // Atualizar informações no modal
+        confirmAnimeTitle.textContent = episodeData.animeTitle || anime.displayTitle || anime.title;
+        confirmAnimeQuality.textContent = episodeData.quality || anime.quality;
+        confirmTotalEpisodes.textContent = episodeData.totalEpisodes || 0;
+        
+        // Mostrar episódios já baixados
+        if (episodeData.downloadedEpisodes && episodeData.downloadedEpisodes.length > 0) {
+            confirmDownloadedEpisodes.textContent = `Episódios já baixados: ${episodeData.downloadedEpisodes.join(', ')}`;
+        } else {
+            confirmDownloadedEpisodes.textContent = "Nenhum episódio baixado ainda.";
+        }
+        
+        // Mostrar lista de episódios a serem baixados
+        if (episodeData.episodesToDownload && episodeData.episodesToDownload.length > 0) {
+            confirmEpisodesCount.textContent = episodeData.episodesToDownload.length;
+            
+            // Ordenar episódios por número
+            episodeData.episodesToDownload.sort((a, b) => a.number - b.number);
+            
+            confirmEpisodesList.innerHTML = episodeData.episodesToDownload.map(episode => `
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <span>Episódio ${episode.number}</span>
+                    <span class="badge bg-success">Novo</span>
+                </li>
+            `).join('');
+            
+            // Se não houver episódios para baixar, desabilitar botão de confirmação
+            confirmDownloadBtn.disabled = episodeData.episodesToDownload.length === 0;
+        } else {
+            confirmEpisodesCount.textContent = "0";
+            confirmEpisodesList.innerHTML = `
+                <li class="list-group-item text-center">
+                    <i class="bi bi-check-circle-fill text-success me-2"></i>
+                    Todos os episódios já foram baixados
+                </li>
+            `;
+            confirmDownloadBtn.disabled = true;
+        }
+    } catch (error) {
+        console.error('Error checking episodes:', error);
+        confirmEpisodesModal.hide();
+        showAlert(`Erro ao verificar episódios: ${error.message}`, 'danger');
+    }
+}
+
+// Function to execute download after confirmation
+async function executeDownloadAfterConfirmation() {
+    try {
+        // Verificar se temos um anime para baixar
+        if (!currentAnimeToDownload) {
+            showAlert('Erro: Nenhum anime selecionado para download', 'danger');
+            confirmEpisodesModal.hide();
+            return;
+        }
+        
+        // Fechar o modal de confirmação
+        confirmEpisodesModal.hide();
+        
+        console.log(`Iniciando download para: ${currentAnimeToDownload.title}`);
+        
+        // Iniciar o download real
+        const response = await fetch(`${ANIMES_URL}/${currentAnimeToDownload.id}/download`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title: currentAnimeToDownload.title })
         });
         
         if (!response.ok) {
@@ -723,19 +831,22 @@ async function startAnimeDownload(anime) {
         }
         
         const result = await response.json();
-        showAlert(`Download iniciado para "${anime.displayTitle || anime.title}"`, 'success');
+        showAlert(`Download iniciado para "${currentAnimeToDownload.displayTitle || currentAnimeToDownload.title}"`, 'success');
         
         // Abrir o popup de progresso imediatamente
         downloadProgressModal.show();
         
         // Set initial progress state
-        popupAnimeTitle.textContent = anime.displayTitle || anime.title;
+        popupAnimeTitle.textContent = currentAnimeToDownload.displayTitle || currentAnimeToDownload.title;
         popupEpisodeInfo.textContent = 'Preparando download...';
         popupProgress.style.width = '0%';
         popupProgress.textContent = '0%';
         
         // Recarregar status imediatamente
         loadDownloadStatus();
+        
+        // Limpar a referência ao anime atual
+        currentAnimeToDownload = null;
     } catch (error) {
         console.error('Error starting download:', error);
         showAlert(`Erro ao iniciar download: ${error.message}`, 'danger');
@@ -1002,7 +1113,7 @@ async function loadDownloadStatus() {
     }
 }
 
-// Adicionar função para atualizar a fila de downloads no popup
+// Função para atualizar a fila de downloads no popup
 function updateDownloadQueuePopup(status) {
     if (!status || !status.queue) {
         popupQueueList.innerHTML = '<li class="list-group-item">Nenhum episódio na fila</li>';
@@ -1010,20 +1121,58 @@ function updateDownloadQueuePopup(status) {
         return;
     }
     
-    // Atualizar contagem de episódios na fila
+    // Atualizar contagem de animes na fila
     popupQueueCount.textContent = status.queue.length;
     
-    // Mostrar os episódios em espera
+    // Mostrar os animes em espera com detalhes dos episódios
     if (status.queue.length === 0) {
-        popupQueueList.innerHTML = '<li class="list-group-item">Nenhum episódio na fila</li>';
+        popupQueueList.innerHTML = '<li class="list-group-item">Nenhum anime na fila</li>';
     } else {
         popupQueueList.innerHTML = status.queue.map(item => {
-            const animeTitle = item.animeTitle || item.name || 'Desconhecido';
-            const episodeNumber = item.episode ? item.episode.number : (item.startEpisode || '?');
+            const animeTitle = item.displayName || item.name || 'Desconhecido';
+            let episodeInfo = '';
+            
+            // Verificar se há informações de episódios específicos
+            if (item.episodes && Array.isArray(item.episodes)) {
+                // Se há uma lista de episódios, exibir o primeiro e o último
+                const totalEpisodes = item.episodes.length;
+                
+                if (totalEpisodes > 0) {
+                    // Ordenar episódios por número
+                    const sortedEpisodes = [...item.episodes].sort((a, b) => a.number - b.number);
+                    const firstEpisode = sortedEpisodes[0]?.number || item.startEpisode || '?';
+                    const lastEpisode = sortedEpisodes[totalEpisodes-1]?.number || firstEpisode;
+                    
+                    if (totalEpisodes === 1) {
+                        episodeInfo = `Episódio ${firstEpisode}`;
+                    } else if (totalEpisodes > 1) {
+                        episodeInfo = `${totalEpisodes} episódios (${firstEpisode} a ${lastEpisode})`;
+                    }
+                } else {
+                    episodeInfo = `A partir do episódio ${item.startEpisode || 1}`;
+                }
+            } else if (item.totalEpisodes) {
+                // Se temos informação do total de episódios
+                episodeInfo = `${item.totalEpisodes} episódios`;
+            } else if (item.startEpisode) {
+                // Se só temos episódio inicial
+                episodeInfo = `A partir do episódio ${item.startEpisode}`;
+            } else {
+                episodeInfo = 'Todos os episódios';
+            }
+            
+            // Adicionar informação de qualidade, se disponível
+            if (item.quality) {
+                episodeInfo += ` [${item.quality}]`;
+            }
             
             return `
                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>${animeTitle} - Episódio ${episodeNumber}</span>
+                    <div>
+                        <span class="fw-bold">${animeTitle}</span>
+                        <br>
+                        <small class="text-muted">${episodeInfo}</small>
+                    </div>
                     <span class="badge bg-primary rounded-pill">Em espera</span>
                 </li>
             `;
@@ -1386,6 +1535,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Adicionar evento para o botão de cancelar no popup
     popupCancelDownloadBtn.addEventListener('click', cancelCurrentDownload);
+    
+    // Adicionar evento para o botão de confirmar download
+    confirmDownloadBtn.addEventListener('click', executeDownloadAfterConfirmation);
     
     // Add toggle functionality for featured animes section
     const toggleFeaturedBtn = document.getElementById('toggle-featured-animes');
