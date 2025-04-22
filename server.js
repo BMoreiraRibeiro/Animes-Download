@@ -30,6 +30,30 @@ const IMAGES_CACHE_FILE = path.join(__dirname, 'anime-images-cache.json');
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36';
 const WATCHED_EPISODES_FILE = path.join(__dirname, 'watched-episodes.json');
 
+// Helper function to get anime line from list
+function getAnimeLineFromList(animeTitle) {
+    try {
+        if (!fs.existsSync(ANIME_LIST_FILE)) return null;
+        
+        const content = fs.readFileSync(ANIME_LIST_FILE, 'utf8');
+        const lines = content.split('\n');
+        
+        // Find the exact line that matches the anime title
+        const line = lines.find(line => {
+            if (line.trim() && !line.startsWith('#')) {
+                const parts = line.split('|');
+                return parts[0].trim() === animeTitle;
+            }
+            return false;
+        });
+        
+        return line || null;
+    } catch (error) {
+        console.error('Error getting anime line from list:', error);
+        return null;
+    }
+}
+
 // Adicione esta constante no início do arquivo com outros mapeamentos de constantes
 const ANIME_ALIASES = {
     // Mapeia nomes alternativos para o mesmo anime
@@ -480,30 +504,6 @@ function getAnimeEntryFromList(animeTitle) {
         return null;
     } catch (error) {
         console.error('Error reading anime entry:', error);
-        return null;
-    }
-}
-
-// Helper function to get anime line from list
-function getAnimeLineFromList(animeTitle) {
-    try {
-        if (!fs.existsSync(ANIME_LIST_FILE)) return null;
-        
-        const content = fs.readFileSync(ANIME_LIST_FILE, 'utf8');
-        const lines = content.split('\n');
-        
-        // Find the exact line that matches the anime title
-        const line = lines.find(line => {
-            if (line.trim() && !line.startsWith('#')) {
-                const parts = line.split('|');
-                return parts[0].trim() === animeTitle;
-            }
-            return false;
-        });
-        
-        return line || null;
-    } catch (error) {
-        console.error('Error getting anime line from list:', error);
         return null;
     }
 }
