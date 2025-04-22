@@ -484,6 +484,30 @@ function getAnimeEntryFromList(animeTitle) {
     }
 }
 
+// Helper function to get anime line from list
+function getAnimeLineFromList(animeTitle) {
+    try {
+        if (!fs.existsSync(ANIME_LIST_FILE)) return null;
+        
+        const content = fs.readFileSync(ANIME_LIST_FILE, 'utf8');
+        const lines = content.split('\n');
+        
+        // Find the exact line that matches the anime title
+        const line = lines.find(line => {
+            if (line.trim() && !line.startsWith('#')) {
+                const parts = line.split('|');
+                return parts[0].trim() === animeTitle;
+            }
+            return false;
+        });
+        
+        return line || null;
+    } catch (error) {
+        console.error('Error getting anime line from list:', error);
+        return null;
+    }
+}
+
 // Endpoint para verificar episódios antes de baixar
 app.post('/api/animes/:id/check-episodes', async (req, res) => {
     try {
@@ -712,7 +736,7 @@ app.post('/api/animes/:id/download', async (req, res) => {
         }
 
         // Get anime entry from list
-        animeLine = getAnimeLineFromList(title);
+        const animeLine = getAnimeLineFromList(title);
         const animeEntry = getAnimeEntryFromList(title);
         
         if (!animeEntry) {
@@ -727,27 +751,31 @@ app.post('/api/animes/:id/download', async (req, res) => {
         const tempId = Date.now().toString();
         const tempAnimeListFile = path.join(__dirname, `temp-anime-list-${tempId}.txt`);
         
-        // Check if we have the line from the anime list, or if we need to search by aliases
-        let animeLine = animeEntry ? getAnimeLineFromList(title) : null;
-        
+        // Check if we have the line from the anime list
         if (!animeLine) {
-            // If not found directly, try to find by alias
-            animeLine = content.split('\n').find(line => {
+            const content = fs.readFileSync(ANIME_LIST_FILE, 'utf8');
+            
+            // Try to find by alias if direct search didn't work
+            const aliasLine = content.split('\n').find(line => {
                 if (line && !line.startsWith('#') && ANIME_ALIASES[title]) {
                     const parts = line.split('|');
                     return parts[0].trim() === ANIME_ALIASES[title];
                 }
                 return false;
             });
+            
+            if (!aliasLine) {
+                console.log(`[SERVER] ❌ Linha do anime não encontrada para: ${title}`);
+                return res.status(404).json({ error: 'Anime not found in list' });
+            }
+            
+            // Create temp file with the alias line
+            fs.writeFileSync(tempAnimeListFile, aliasLine);
+        } else {
+            // Create temp file with the found line
+            fs.writeFileSync(tempAnimeListFile, animeLine);
         }
         
-        if (!animeLine) {
-            console.log(`[SERVER] ❌ Linha do anime não encontrada para: ${title}`);
-            return res.status(404).json({ error: 'Anime not found in list' });
-        }
-        
-        // Create temp file with just this anime
-        fs.writeFileSync(tempAnimeListFile, animeLine);
         console.log(`[SERVER] 📄 Arquivo temporário criado: ${tempAnimeListFile}`);
         
         // Clear any existing status before starting new download
