@@ -1,11 +1,2 @@
-# Lista de Animes para Download
-# Adicione um nome de anime por linha
-# Linhas que começam com # são comentários e serão ignoradas
-
-Wind Breaker Season 2 | SD | 1
-Isshun de Chiryou shiteita noni Yakutatazu to Tsuihou sareta Tensai Chiyushi, Yami Healer toshite Tanoshiku Ikiru | SD | 1
-
-Re:Zero-kara-Hajimeru-Isekai-Seikatsu-3rd-Season | SD | 1
-Saikyou-no-Ousama,-Nidome-no-Jinsei-wa-Nani-wo-Suru? | SD | 1
-Lazarus | SD | 1 | "https://animefire.plus/animes/lazarus-todos-os-episodios"
-Chotto-dake-Ai-ga-Omoi-Dark-Elf-ga-Isekai-kara-Oikaketekita | SD | 1 | "https://animefire.plus/animes/chotto-dake-ai-ga-omoi-dark-elf-ga-isekai-kara-oikaketekita-todos-os-episodios"
+# Add your anime list here
+# Format: id | Title | Quality | Starting Episode | "animeUrl" | "imageUrl"

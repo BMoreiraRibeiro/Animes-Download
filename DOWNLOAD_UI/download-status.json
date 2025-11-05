@@ -3,313 +3,151 @@
   "queue": [],
   "completed": [
     {
-      "name": "saikyou-no-ousama-nidome-no-jinsei-wa-nani-wo-suru",
+      "name": "Tondemo-Skill-de-Isekai-Hourou-Meshi-2--",
+      "displayName": "Tondemo Skill de Isekai Hourou Meshi 2  ",
       "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-10T23:11:56.528Z",
-      "details": {},
-      "endTime": "2025-04-10T23:11:57.135Z"
-    },
-    {
-      "name": "Re:Zero kara Hajimeru Isekai Seikatsu 3rd Season",
-      "quality": "SD",
-      "startEpisode": 1,
+      "startEpisode": 5,
       "status": "completed",
       "progress": 0,
-      "startTime": "2025-04-10T23:15:35.039Z",
+      "startTime": "2025-11-05T02:37:10.417Z",
       "details": {},
-      "errorMessage": "Anime não encontrado",
-      "endTime": "2025-04-10T23:15:35.392Z"
+      "errorMessage": "Nenhum episódio encontrado",
+      "endTime": "2025-11-05T02:37:10.597Z"
     },
     {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
+      "name": "Tondemo-Skill-de-Isekai-Hourou-Meshi-2",
+      "displayName": "Tondemo Skill de Isekai Hourou Meshi 2",
+      "quality": "HD",
+      "startEpisode": 5,
+      "status": "completed",
+      "progress": 100,
+      "startTime": "2025-11-05T02:46:22.278Z",
+      "details": {},
+      "endTime": "2025-11-05T02:47:14.138Z"
+    },
+    {
+      "name": "Sozai-Saishuka-no-Isekai-Ryokouki",
+      "displayName": "Sozai Saishuka no Isekai Ryokouki",
+      "quality": "SD",
+      "startEpisode": 5,
+      "status": "completed",
+      "progress": 100,
+      "startTime": "2025-11-05T02:50:44.955Z",
+      "details": {},
+      "errorMessage": "Erro ao baixar episódio undefined: tempFiles is not defined",
+      "endTime": "2025-11-05T02:50:45.749Z"
+    },
+    {
+      "name": "Sozai-Saishuka-no-Isekai-Ryokouki",
+      "displayName": "Sozai Saishuka no Isekai Ryokouki",
+      "quality": "SD",
+      "startEpisode": 5,
+      "status": "completed",
+      "progress": 100,
+      "startTime": "2025-11-05T02:51:58.455Z",
+      "details": {},
+      "endTime": "2025-11-05T02:52:19.636Z"
+    },
+    {
+      "name": "Sozai-Saishuka-no-Isekai-Ryokouki",
+      "displayName": "Sozai Saishuka no Isekai Ryokouki",
       "quality": "SD",
       "startEpisode": 1,
       "status": "completed",
       "progress": 100,
-      "startTime": "2025-04-10T23:30:11.337Z",
+      "startTime": "2025-11-05T02:52:43.968Z",
       "details": {},
-      "endTime": "2025-04-10T23:30:12.213Z"
+      "endTime": "2025-11-05T02:52:44.189Z"
     },
     {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
+      "name": "Sozai-Saishuka-no-Isekai-Ryokouki",
+      "displayName": "Sozai-Saishuka-no-Isekai-Ryokouki",
       "quality": "SD",
       "startEpisode": 1,
       "status": "completed",
       "progress": 100,
-      "startTime": "2025-04-10T23:30:37.013Z",
+      "startTime": "2025-11-05T02:58:13.954Z",
       "details": {},
-      "endTime": "2025-04-10T23:30:37.869Z"
+      "endTime": "2025-11-05T02:58:36.041Z"
     },
     {
-      "name": "Saikyou-no-Ousama,-Nidome-no-Jinsei-wa-Nani-wo-Suru?",
-      "displayName": "Saikyou no Ousama, Nidome no Jinsei wa Nani wo Suru?",
+      "name": "Sozai-Saishuka-no-Isekai-Ryokouki",
+      "displayName": "Sozai Saishuka no Isekai Ryokouki",
       "quality": "SD",
       "startEpisode": 1,
       "status": "completed",
       "progress": 100,
-      "startTime": "2025-04-10T23:42:13.890Z",
+      "startTime": "2025-11-05T02:58:36.053Z",
       "details": {},
-      "endTime": "2025-04-10T23:42:14.461Z"
+      "endTime": "2025-11-05T02:58:36.290Z"
     },
     {
-      "name": "saikyou-no-ousama-nidome-no-jinsei-wa-nani-wo-suru",
-      "displayName": "saikyou no ousama nidome no jinsei wa nani wo suru",
+      "name": "Tondemo-Skill-de-Isekai-Hourou-Meshi-2",
+      "displayName": "Tondemo-Skill-de-Isekai-Hourou-Meshi-2",
       "quality": "SD",
       "startEpisode": 1,
       "status": "completed",
       "progress": 100,
-      "startTime": "2025-04-10T23:43:25.759Z",
+      "startTime": "2025-11-05T03:39:21.235Z",
       "details": {},
-      "endTime": "2025-04-10T23:43:26.238Z"
+      "endTime": "2025-11-05T03:40:35.835Z"
     },
     {
-      "name": "saikyou-no-ousama-nidome-no-jinsei-wa-nani-wo-suru",
-      "displayName": "saikyou no ousama nidome no jinsei wa nani wo suru",
+      "name": "Sozai-Saishuka-no-Isekai-Ryokouki",
+      "displayName": "Sozai Saishuka no Isekai Ryokouki",
       "quality": "SD",
       "startEpisode": 1,
       "status": "completed",
       "progress": 100,
-      "startTime": "2025-04-10T23:43:28.409Z",
+      "startTime": "2025-11-05T03:40:35.846Z",
       "details": {},
-      "endTime": "2025-04-10T23:43:28.841Z"
+      "endTime": "2025-11-05T03:40:36.023Z"
     },
     {
-      "name": "saikyou-no-ousama-nidome-no-jinsei-wa-nani-wo-suru",
-      "displayName": "saikyou no ousama nidome no jinsei wa nani wo suru",
+      "name": "Tondemo-Skill-de-Isekai-Hourou-Meshi-2",
+      "displayName": "Tondemo Skill de Isekai Hourou Meshi 2",
+      "quality": "HD",
+      "startEpisode": 1,
+      "status": "completed",
+      "progress": 100,
+      "startTime": "2025-11-05T03:41:48.315Z",
+      "details": {},
+      "endTime": "2025-11-05T03:41:48.552Z"
+    },
+    {
+      "name": "Sozai-Saishuka-no-Isekai-Ryokouki",
+      "displayName": "Sozai Saishuka no Isekai Ryokouki",
       "quality": "SD",
       "startEpisode": 1,
       "status": "completed",
       "progress": 100,
-      "startTime": "2025-04-10T23:43:58.500Z",
+      "startTime": "2025-11-05T03:41:48.556Z",
       "details": {},
-      "endTime": "2025-04-10T23:45:40.269Z"
+      "endTime": "2025-11-05T03:41:48.708Z"
     },
     {
-      "name": "saikyou-no-ousama-nidome-no-jinsei-wa-nani-wo-suru",
-      "displayName": "saikyou no ousama nidome no jinsei wa nani wo suru",
+      "name": "Sozai-Saishuka-no-Isekai-Ryokouki",
+      "displayName": "Sozai Saishuka no Isekai Ryokouki",
       "quality": "SD",
       "startEpisode": 1,
       "status": "completed",
       "progress": 100,
-      "startTime": "2025-04-10T23:55:05.533Z",
+      "startTime": "2025-11-05T03:42:26.215Z",
       "details": {},
-      "endTime": "2025-04-10T23:55:06.231Z"
+      "endTime": "2025-11-05T03:42:26.464Z"
     },
     {
-      "name": "saikyou-no-ousama-nidome-no-jinsei-wa-nani-wo-suru",
-      "displayName": "saikyou no ousama nidome no jinsei wa nani wo suru",
+      "name": "Tondemo-Skill-de-Isekai-Hourou-Meshi-2",
+      "displayName": "Tondemo-Skill-de-Isekai-Hourou-Meshi-2",
       "quality": "SD",
       "startEpisode": 1,
       "status": "completed",
       "progress": 100,
-      "startTime": "2025-04-10T23:55:33.815Z",
+      "startTime": "2025-11-05T03:48:36.430Z",
       "details": {},
-      "endTime": "2025-04-10T23:57:15.324Z"
-    },
-    {
-      "name": "saikyou-no-ousama-nidome-no-jinsei-wa-nani-wo-suru",
-      "displayName": "saikyou no ousama nidome no jinsei wa nani wo suru",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:06:21.611Z",
-      "details": {},
-      "endTime": "2025-04-11T00:06:22.162Z"
-    },
-    {
-      "name": "Saikyou-no-Ousama,-Nidome-no-Jinsei-wa-Nani-wo-Suru?",
-      "displayName": "Saikyou no Ousama, Nidome no Jinsei wa Nani wo Suru?",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:12:40.243Z",
-      "details": {},
-      "endTime": "2025-04-11T00:15:02.826Z"
-    },
-    {
-      "name": "Chotto-dake-Ai-ga-Omoi-Dark-Elf-ga-Isekai-kara-Oikaketekita",
-      "displayName": "Chotto dake Ai ga Omoi Dark Elf ga Isekai kara Oikaketekita",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:27:42.000Z",
-      "details": {},
-      "endTime": "2025-04-11T00:28:00.379Z"
-    },
-    {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:39:24.357Z",
-      "details": {},
-      "endTime": "2025-04-11T00:39:25.208Z"
-    },
-    {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:39:46.439Z",
-      "details": {},
-      "endTime": "2025-04-11T00:39:47.334Z"
-    },
-    {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:40:04.337Z",
-      "details": {},
-      "endTime": "2025-04-11T00:40:05.193Z"
-    },
-    {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:44:26.520Z",
-      "details": {},
-      "endTime": "2025-04-11T00:44:27.516Z"
-    },
-    {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:44:33.512Z",
-      "details": {},
-      "endTime": "2025-04-11T00:44:34.417Z"
-    },
-    {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:50:29.424Z",
-      "details": {},
-      "endTime": "2025-04-11T00:50:30.251Z"
-    },
-    {
-      "name": "Katainaka-no-Ossan,-Kensei-ni-Naru",
-      "displayName": "Katainaka no Ossan, Kensei ni Naru",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:53:58.321Z",
-      "details": {},
-      "endTime": "2025-04-11T00:53:59.294Z"
-    },
-    {
-      "name": "Chotto-dake-Ai-ga-Omoi-Dark-Elf-ga-Isekai-kara-Oikaketekita",
-      "displayName": "Chotto dake Ai ga Omoi Dark Elf ga Isekai kara Oikaketekita",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:58:43.363Z",
-      "details": {},
-      "endTime": "2025-04-11T00:58:43.876Z"
-    },
-    {
-      "name": "Chotto-dake-Ai-ga-Omoi-Dark-Elf-ga-Isekai-kara-Oikaketekita",
-      "displayName": "Chotto dake Ai ga Omoi Dark Elf ga Isekai kara Oikaketekita",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T00:59:01.186Z",
-      "details": {},
-      "endTime": "2025-04-11T00:59:27.941Z"
-    },
-    {
-      "name": "Chotto-dake-Ai-ga-Omoi-Dark-Elf-ga-Isekai-kara-Oikaketekita",
-      "displayName": "Chotto dake Ai ga Omoi Dark Elf ga Isekai kara Oikaketekita",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T01:08:36.902Z",
-      "details": {},
-      "endTime": "2025-04-11T01:08:37.487Z"
-    },
-    {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T01:15:30.443Z",
-      "details": {},
-      "endTime": "2025-04-11T01:15:31.347Z"
-    },
-    {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T01:16:35.110Z",
-      "details": {},
-      "endTime": "2025-04-11T01:16:35.987Z"
-    },
-    {
-      "name": "Lazarus",
-      "displayName": "Lazarus",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T01:23:33.028Z",
-      "details": {},
-      "endTime": "2025-04-11T01:25:13.824Z"
-    },
-    {
-      "name": "Chotto-dark-elf",
-      "displayName": "Chotto dark elf",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T01:27:08.222Z",
-      "details": {},
-      "endTime": "2025-04-11T01:27:33.756Z"
-    },
-    {
-      "name": "Chotto-dake-Ai-ga-Omoi-Dark-Elf-ga-Isekai-kara-Oikaketekita",
-      "displayName": "Chotto dake Ai ga Omoi Dark Elf ga Isekai kara Oikaketekita",
-      "quality": "SD",
-      "startEpisode": 1,
-      "status": "completed",
-      "progress": 100,
-      "startTime": "2025-04-11T01:29:55.420Z",
-      "details": {},
-      "endTime": "2025-04-11T01:30:32.774Z"
+      "endTime": "2025-11-05T03:49:27.065Z"
     }
   ],
   "progress": {},
-  "lastUpdate": "2025-04-11T01:30:32.775Z"
+  "lastUpdate": "2025-11-05T03:49:27.065Z"
 }
