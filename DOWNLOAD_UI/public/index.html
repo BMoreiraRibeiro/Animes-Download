@@ -24,6 +24,9 @@
                         <a class="nav-link" href="#" id="settings-link">Configurações</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="#" id="archive-link">Arquivados</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="#" id="status-link">Status</a>
                     </li>
                 </ul>
@@ -39,14 +42,77 @@
     <div class="container mt-4">
         <!-- Home View -->
         <div id="home-view">
+            <div class="mb-4">
+                <h2>Animes em Destaque</h2>
+                <!-- Tabs Navigation -->
+                <ul class="nav nav-tabs mb-3" id="featured-tabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="featured-tab" data-bs-toggle="tab" data-bs-target="#featured-content" type="button" role="tab">
+                            <i class="bi bi-broadcast"></i> Em Lançamento
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="top10-tab" data-bs-toggle="tab" data-bs-target="#top10-content" type="button" role="tab">
+                            <i class="bi bi-trophy-fill"></i> Top 10
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="latest-tab" data-bs-toggle="tab" data-bs-target="#latest-content" type="button" role="tab">
+                            <i class="bi bi-clock-fill"></i> Últimos Adicionados
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Tabs Content -->
+                <div class="tab-content" id="featured-tabs-content">
+                    <!-- Em Lançamento Tab -->
+                    <div class="tab-pane fade show active" id="featured-content" role="tabpanel">
+                        <div class="row" id="featured-list">
+                            <p class="text-center">Carregando animes em lançamento...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Top 10 Tab -->
+                    <div class="tab-pane fade" id="top10-content" role="tabpanel">
+                        <div class="row" id="top10-list">
+                            <p class="text-center">Carregando top 10...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Últimos Adicionados Tab -->
+                    <div class="tab-pane fade" id="latest-content" role="tabpanel">
+                        <div class="row" id="latest-list">
+                            <p class="text-center">Carregando últimos adicionados...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h2>Lista de Animes</h2>
-                <button class="btn btn-success" id="add-anime-btn">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-secondary" id="select-all-btn">Selecionar Tudo</button>
+                    <button class="btn btn-warning" id="archive-selected-btn">Arquivar Selecionados</button>
+                    <button class="btn btn-success" id="add-anime-btn">
                     <i class="bi bi-plus-circle"></i> Adicionar Anime
-                </button>
+                    </button>
+                </div>
             </div>
             <div class="row" id="anime-list">
                 <p class="text-center">Carregando animes...</p>
+            </div>
+        </div>
+
+        <!-- Archived View -->
+        <div id="archived-view" style="display:none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>Arquivados</h2>
+                <div>
+                    <button class="btn btn-outline-secondary" id="back-to-home-btn">Voltar</button>
+                </div>
+            </div>
+            <div class="row" id="archived-list">
+                <p class="text-center">Carregando arquivados...</p>
             </div>
         </div>
 
@@ -106,6 +172,9 @@
                         <div class="progress-bar" id="current-progress" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">0%</div>
                     </div>
                     <p id="current-anime-details">Carregando detalhes...</p>
+                    <button type="button" class="btn btn-danger btn-sm" id="cancel-download-status-btn">
+                        <i class="bi bi-x-circle"></i> Cancelar Download
+                    </button>
                 </div>
             </div>
             
@@ -230,6 +299,88 @@
             </div>
         </div>
 
+        <!-- Download Confirm Modal -->
+        <div class="modal fade" id="download-modal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Iniciar Download</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="download-form">
+                            <input type="hidden" id="download-anime-id">
+                            <div class="mb-2">
+                                <label class="form-label">Anime</label>
+                                <div id="download-anime-title" class="fw-bold"></div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="download-quality" class="form-label">Qualidade</label>
+                                <select id="download-quality" class="form-select">
+                                    <option value="HD">HD</option>
+                                    <option value="SD">SD</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="download-start-episode" class="form-label">Episódio Inicial</label>
+                                <input type="number" id="download-start-episode" class="form-control" min="1" value="1">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn btn-primary" id="confirm-download-btn">Iniciar Download</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Download Progress Modal -->
+        <div class="modal fade" id="download-progress-modal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Progresso dos Downloads</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div id="modal-current-download" class="mb-3">
+                            <h6 id="modal-current-download-title">Nenhum download em andamento</h6>
+                            <div class="progress mb-2">
+                                <div class="progress-bar" id="modal-current-progress" role="progressbar" style="width: 0%;">0%</div>
+                            </div>
+                            <div id="modal-current-details" class="small text-muted">Aguardando...</div>
+                        </div>
+
+                        <div>
+                            <h6>Fila de Downloads</h6>
+                            <ul class="list-group" id="modal-queue-list">
+                                <li class="list-group-item">Nenhuma fila</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-danger" id="cancel-download-btn">
+                            <i class="bi bi-x-circle"></i> Cancelar Download
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 9999;">
+        <div id="toast-template" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                <strong class="me-auto toast-title">Notificação</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body"></div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>

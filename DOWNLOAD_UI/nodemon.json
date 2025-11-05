@@ -1,0 +1,22 @@
+{
+  "watch": [
+    "server.js",
+    "public/**/*",
+    "src/**/*"
+  ],
+  "ignore": [
+    "downloads/**",
+    "temp-*.txt",
+    "download-status.json",
+    "anime-images-cache.json",
+    "anime-list.txt",
+    "config.json",
+    "*.log",
+    "node_modules/**",
+    ".git/**"
+  ],
+  "ext": "js,json,html,css",
+  "env": {
+    "NODE_ENV": "development"
+  }
+}
