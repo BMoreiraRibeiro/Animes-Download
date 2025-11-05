@@ -152,19 +152,22 @@ process.on('uncaughtException', (error) => {
 
 // Função para limpeza quando o programa é interrompido
 function cleanup() {
-    console.log('\nPrograma interrompido. Salvando estado...');
+    console.log('\nPrograma interrompido.');
     
-    // Salvar o estado atual da fila e downloads
-    saveEpisodeQueue();
+    // Limpar a fila quando o processo for cancelado
+    // (para que não tente retomar na próxima execução)
+    console.log('Limpando fila de downloads...');
+    clearQueue();
+    
+    // Limpar o status atual
+    if (downloadStatus.current) {
+        downloadStatus.current.status = 'cancelled';
+        downloadStatus.current.endTime = new Date().toISOString();
+    }
     saveDownloadStatus();
     
-    if (episodeQueue.episodes.length > 0) {
-        console.log(`${episodeQueue.episodes.length} episódios ficaram na fila.`);
-        console.log(`Para retomar, execute o programa novamente.`);
-    }
-    
-    console.log('Estado salvo. Encerrando programa.');
-    process.exit(1);
+    console.log('Download cancelado. Encerrando programa.');
+    process.exit(0);
 }
 
 // Função para normalizar nomes de animes para pesquisa e armazenamento
@@ -218,35 +221,51 @@ async function main() {
             .filter(line => line && !line.startsWith('#'))
             .map(line => {
                 // Formatos possíveis:
-                // 1. título | qualidade | episódio | "título original"
-                // 2. título | qualidade | episódio | "URL do anime"
-                // 3. título | qualidade | episódio
+                // NOVO: id | título | qualidade | episódio | "URL do anime" | "imageUrl"
+                // ANTIGO: título | qualidade | episódio | "URL ou título original"
                 let parts = line.split('|').map(part => part.trim());
-                const name = parts[0]; // Nome normalizado para armazenamento/pesquisa
                 
-                // Checar se temos o formato com nome original ou URL
-                let originalName = name;
-                let animeUrl = ''; // Novo campo para armazenar URL se disponível
+                let name, originalName, quality, startEpisode, animeUrl;
                 
-                if (parts.length >= 4) {
-                    const fourthPart = parts[3].replace(/^"(.+)"$/, '$1');
+                // Detectar se é o novo formato (primeiro campo é numérico)
+                if (parts.length > 1 && /^\d+$/.test(parts[0])) {
+                    // Novo formato: id | título | qualidade | episódio | "URL" | "imageUrl"
+                    name = parts[1]; // Título está no segundo campo
+                    quality = parts[2]?.toUpperCase() === 'SD' ? 'SD' : 
+                              parts[2]?.toUpperCase() === 'HD' ? 'HD' : 
+                              CONFIG.defaultQuality;
+                    startEpisode = parts[3] ? parseInt(parts[3]) : CONFIG.startFromEpisode;
+                    animeUrl = parts[4] ? parts[4].replace(/^"|"$/g, '') : '';
+                    originalName = name;
+                    console.log(`[DEBUG] Anime lido: ${name}, startEpisode: ${startEpisode} (parts[3]: "${parts[3]}")`);
+                } else {
+                    // Formato antigo: título | qualidade | episódio | "URL ou título original"
+                    name = parts[0];
+                    originalName = name;
+                    quality = parts[1]?.toUpperCase() === 'SD' ? 'SD' : 
+                              parts[1]?.toUpperCase() === 'HD' ? 'HD' : 
+                              CONFIG.defaultQuality;
+                    startEpisode = parts[2] ? parseInt(parts[2]) : CONFIG.startFromEpisode;
+                    animeUrl = '';
                     
-                    // Verificar se é URL ou nome original
-                    if (fourthPart.startsWith('http')) {
-                        animeUrl = fourthPart;
-                        console.log(`URL encontrada para ${name}: ${animeUrl}`);
-                    } else {
-                        originalName = fourthPart;
+                    if (parts.length >= 4) {
+                        const fourthPart = parts[3].replace(/^"(.+)"$/, '$1');
+                        
+                        // Verificar se é URL ou nome original
+                        if (fourthPart.startsWith('http')) {
+                            animeUrl = fourthPart;
+                            console.log(`URL encontrada para ${name}: ${animeUrl}`);
+                        } else {
+                            originalName = fourthPart;
+                        }
                     }
                 }
                 
                 return {
                     name: name, // Nome normalizado para pesquisa e criação de pasta
                     displayName: originalName, // Nome original para exibição
-                    quality: parts[1]?.toUpperCase() === 'SD' ? 'SD' : 
-                            parts[1]?.toUpperCase() === 'HD' ? 'HD' : 
-                            CONFIG.defaultQuality,
-                    startEpisode: parts[2] ? parseInt(parts[2]) : CONFIG.startFromEpisode,
+                    quality: quality,
+                    startEpisode: startEpisode,
                     animeUrl: animeUrl // URL direta para o anime, se disponível
                 };
             });
@@ -462,9 +481,12 @@ async function processAnime(animeEntry) {
         logStream.write(`Total de episódios encontrados: ${episodes.length}\n`);
         
         // Filtrar episódios a partir do episódio inicial definido
+        console.log(`[DEBUG] Filtrando episódios. startEpisode configurado: ${animeEntry.startEpisode}`);
         const filteredEpisodes = episodes.filter(ep => {
             const episodeNumber = extractEpisodeNumber(ep.title, ep.url);
-            return episodeNumber >= animeEntry.startEpisode;
+            const shouldInclude = episodeNumber >= animeEntry.startEpisode;
+            console.log(`[DEBUG] Episódio ${episodeNumber}: ${shouldInclude ? 'INCLUIR' : 'PULAR'} (título: ${ep.title})`);
+            return shouldInclude;
         });
         
         console.log(`Episódios a baixar: ${filteredEpisodes.length} (a partir do ${animeEntry.startEpisode})\n`);

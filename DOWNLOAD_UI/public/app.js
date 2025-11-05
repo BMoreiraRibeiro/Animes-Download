@@ -92,6 +92,7 @@ let statusRefreshInterval = null;
 // Selected anime titles (storage titles) for checkboxes
 let selectedAnimes = new Set();
 let currentDownloadingAnime = null; // Track the anime currently being downloaded
+let modalOpenedAt = null; // Track when the modal was opened
 
 // ========== Toast Functions ==========
 function showToast(message, type = 'info', title = 'Notificação') {
@@ -208,6 +209,20 @@ async function cancelDownload() {
             const result = await response.json();
             showToast(result.message, 'success', 'Download Cancelado');
             currentDownloadingAnime = null;
+            
+            // Fechar o modal de progresso
+            if (progressModal && progressModalEl.classList.contains('show')) {
+                progressModal.hide();
+            }
+            
+            // Parar o intervalo de atualização do modal
+            if (modalStatusInterval) {
+                clearInterval(modalStatusInterval);
+                modalStatusInterval = null;
+            }
+            
+            // Recarregar a lista de animes
+            loadAnimes();
         } else {
             const error = await response.json();
             showToast(error.message || 'Erro ao cancelar download', 'danger', 'Erro');
@@ -1054,6 +1069,10 @@ confirmDownloadBtn.addEventListener('click', async () => {
 
 // Open progress modal and start polling /api/download-status to update UI
 function openProgressModal() {
+    // Record when the modal was opened
+    modalOpenedAt = Date.now();
+    console.log('[MODAL] Modal aberto às', new Date().toLocaleTimeString());
+    
     // Immediately fetch and render once
     fetchAndRenderDownloadStatus();
     progressModal.show();
@@ -1102,6 +1121,9 @@ progressModalEl.addEventListener('hidden.bs.modal', () => {
         clearInterval(modalStatusInterval);
         modalStatusInterval = null;
     }
+    // Reset the timestamp when modal is closed
+    modalOpenedAt = null;
+    console.log('[MODAL] Modal fechado, timestamp resetado');
     // Keep global polling running (do not stop it here)
 });
 
@@ -1119,29 +1141,51 @@ async function fetchAndRenderDownloadStatus() {
 function renderDownloadStatusInModal(status) {
     if (!status) return;
 
-    // Verificar se não há downloads em andamento nem na fila
+    // Verificar se há downloads concluídos recentemente
+    const hasCompleted = status.completed && status.completed.length > 0;
     const noCurrentDownload = !status.current;
     const noQueue = (!status.queue || status.queue.length === 0);
     const noEpisodeQueue = (!status.episodeQueue || !status.episodeQueue.episodes || status.episodeQueue.episodes.length === 0);
     
-    // Se não há nada em download e nenhuma fila, fechar o modal
-    if (noCurrentDownload && noQueue && noEpisodeQueue) {
-        // Verificar se o modal está aberto
-        if (progressModalEl.classList.contains('show')) {
-            console.log('Todos os downloads concluídos. Fechando modal...');
-            progressModal.hide();
-            
-            // Parar o intervalo de atualização do modal
-            if (modalStatusInterval) {
-                clearInterval(modalStatusInterval);
-                modalStatusInterval = null;
+    // Verificar há quanto tempo o modal está aberto
+    const modalOpenDuration = modalOpenedAt ? (Date.now() - modalOpenedAt) : 0;
+    const modalJustOpened = modalOpenDuration < 5000; // Menos de 5 segundos
+    
+    console.log('[MODAL DEBUG]', {
+        hasCompleted,
+        noCurrentDownload,
+        noQueue,
+        noEpisodeQueue,
+        modalJustOpened,
+        modalOpenDuration: `${(modalOpenDuration / 1000).toFixed(1)}s`,
+        modalIsOpen: progressModalEl.classList.contains('show')
+    });
+    
+    // Só fechar o modal se:
+    // 1. Tiver downloads concluídos E não houver mais nada na fila
+    // 2. O modal NÃO foi aberto recentemente (evita fechar logo após abrir)
+    if (hasCompleted && noCurrentDownload && noQueue && noEpisodeQueue && !modalJustOpened) {
+        // Aguardar 3 segundos antes de fechar para o usuário ver que completou
+        setTimeout(() => {
+            if (progressModalEl.classList.contains('show')) {
+                console.log('Todos os downloads concluídos. Fechando modal em 3s...');
+                progressModal.hide();
+                
+                // Parar o intervalo de atualização do modal
+                if (modalStatusInterval) {
+                    clearInterval(modalStatusInterval);
+                    modalStatusInterval = null;
+                }
+                
+                // Recarregar a lista de animes para atualizar o status
+                loadAnimes();
+                
+                // Reset do timestamp
+                modalOpenedAt = null;
             }
-            
-            // Recarregar a lista de animes para atualizar o status
-            loadAnimes();
-            
-            return;
-        }
+        }, 3000);
+        
+        return;
     }
 
     // Current

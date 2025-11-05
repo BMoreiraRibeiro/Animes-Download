@@ -261,7 +261,7 @@ try {
 }
 
 // API Routes
-// Get anime list
+// Get anime list (excluindo arquivados)
 app.get('/api/animes', (req, res) => {
     try {
         // Use readAnimeList to get entries with persistent ids
@@ -282,9 +282,12 @@ app.get('/api/animes', (req, res) => {
             };
         });
 
-        // Check for downloaded episodes
+        // Check for downloaded episodes and filter out archived animes
+        const nonArchivedAnimes = [];
+        
         animes.forEach(anime => {
             anime.episodes = [];
+            anime.isArchived = false;
             
             // Lista de possíveis nomes de pasta para este anime
             const folderNames = [anime.title]; // Nome original (armazenado)
@@ -318,7 +321,22 @@ app.get('/api/animes', (req, res) => {
                 folderNames.push(sanitize('Re:Zero kara Hajimeru Isekai Seikatsu 3rd Season'));
             }
             
-            // Verificar cada pasta possível
+            // Primeiro verificar se está arquivado
+            for (const folderName of folderNames) {
+                const archivedFolder = path.join(ARCHIVE_FOLDER, folderName);
+                if (fs.existsSync(archivedFolder)) {
+                    anime.isArchived = true;
+                    console.log(`[API /animes] Anime arquivado detectado: ${anime.title} (pasta: ${folderName})`);
+                    break;
+                }
+            }
+            
+            // Se está arquivado, não adicionar à lista principal
+            if (anime.isArchived) {
+                return; // Skip this anime
+            }
+            
+            // Verificar cada pasta possível para episódios baixados
             for (const folderName of folderNames) {
                 const animeFolder = path.join(DOWNLOAD_FOLDER, folderName);
                 
@@ -353,9 +371,13 @@ app.get('/api/animes', (req, res) => {
             
             // Ordenar episódios por número
             anime.episodes.sort((a, b) => a.number - b.number);
+            
+            // Adicionar à lista de não arquivados
+            nonArchivedAnimes.push(anime);
         });
 
-        res.json(animes);
+        console.log(`[API /animes] Total: ${animes.length}, Arquivados: ${animes.length - nonArchivedAnimes.length}, Retornando: ${nonArchivedAnimes.length}`);
+        res.json(nonArchivedAnimes);
     } catch (error) {
         console.error('Error reading anime list:', error);
         res.status(500).json({ error: error.message });
@@ -575,31 +597,31 @@ app.post('/api/animes/archive', (req, res) => {
         }
 
         // Read current list and preserve image URLs for archived animes
+        // NOTE: When archiving, we DON'T remove from anime-list.txt
+        // Only when permanently deleting we remove from the list
         const content = fs.existsSync(ANIME_LIST_FILE) ? fs.readFileSync(ANIME_LIST_FILE, 'utf8') : '';
         const lines = content.split('\n');
         const imagesToPreserve = {}; // Store image URLs for archived animes
 
-        // New lines after removal
-        const remaining = lines.filter(line => {
+        // Preserve image URLs without removing from list
+        for (const line of lines) {
             if (line.trim() && !line.startsWith('#')) {
                 const parts = line.split('|').map(p => p.trim());
                 // parts[0] is numeric ID, parts[1] is title
                 const title = parts.length > 1 ? parts[1] : parts[0];
                 if (titles.includes(title)) {
-                    // Before removing, preserve the image URL (parts[5] in format: id | title | quality | ep | url | imageUrl)
+                    // Preserve the image URL (parts[5] in format: id | title | quality | ep | url | imageUrl)
                     const imageUrl = parts.length > 5 ? parts[5].replace(/^"|"$/g, '') : '';
                     if (imageUrl) {
                         imagesToPreserve[title] = imageUrl;
                         console.log(`Preserving image for "${title}": ${imageUrl}`);
                     }
-                    return false; // Remove from list
                 }
             }
-            return true;
-        });
+        }
 
-        // Write remaining back to file
-        fs.writeFileSync(ANIME_LIST_FILE, remaining.join('\n'));
+        // Don't modify anime-list.txt when archiving
+        // The list stays intact so downloads can continue working
 
         const results = [];
 
@@ -822,6 +844,10 @@ app.post('/api/animes/archive-delete', (req, res) => {
             try {
                 if (fs.existsSync(folderPath) && fs.lstatSync(folderPath).isDirectory()) {
                     fs.rmSync(folderPath, { recursive: true, force: true });
+                    
+                    // Remove from anime-list.txt when permanently deleting
+                    removeFromAnimeList(folderName);
+                    
                     results.push({ title: folderName, deleted: true, path: folderPath });
                 } else {
                     // Try sanitized version
@@ -829,6 +855,10 @@ app.post('/api/animes/archive-delete', (req, res) => {
                     const altPath = path.join(ARCHIVE_FOLDER, safeName);
                     if (fs.existsSync(altPath) && fs.lstatSync(altPath).isDirectory()) {
                         fs.rmSync(altPath, { recursive: true, force: true });
+                        
+                        // Remove from anime-list.txt when permanently deleting
+                        removeFromAnimeList(safeName);
+                        
                         results.push({ title: folderName, deleted: true, path: altPath });
                     } else {
                         results.push({ title: folderName, deleted: false, error: 'folder not found' });
@@ -921,20 +951,35 @@ app.post('/api/animes/unarchive', (req, res) => {
                 fs.renameSync(srcFolder, finalDest);
 
                 // Re-add to anime-list if not present
-                let content = fs.existsSync(ANIME_LIST_FILE) ? fs.readFileSync(ANIME_LIST_FILE, 'utf8') : '';
-                const lines = content.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+                const existingEntries = readAnimeList();
                 
                 // Usar o nome da pasta (que pode ter espaços) para adicionar à lista
                 const titleForList = folderName.replace(/\s+/g, '-');
-                const exists = lines.some(l => l.split('|')[0].trim() === titleForList);
+                
+                // Verificar se já existe
+                const exists = existingEntries.some(e => e.title === titleForList);
                 
                 if (!exists) {
                     // Try to retrieve imageUrl from cache
                     let imageUrl = animeImagesCache[folderName] || animeImagesCache[titleForList] || '';
                     
-                    // Append with default quality, startEpisode, empty url, and imageUrl if found
-                    const line = `${titleForList} | HD | 1 | "" | "${imageUrl}"`;
-                    fs.appendFileSync(ANIME_LIST_FILE, (content.trim().length ? '\n' : '') + line + '\n');
+                    // Gerar novo ID
+                    const usedIds = new Set(existingEntries.map(e => e.id).filter(id => id !== null));
+                    let newId = 0;
+                    while (usedIds.has(newId)) newId++;
+                    
+                    // Adicionar nova entrada
+                    existingEntries.push({
+                        id: newId,
+                        title: titleForList,
+                        quality: 'HD',
+                        startEpisode: 1,
+                        animeUrl: '',
+                        imageUrl: imageUrl
+                    });
+                    
+                    writeAnimeList(existingEntries);
+                    console.log(`[UNARCHIVE] Re-adicionado à lista: ${titleForList} (ID: ${newId})`);
                 }
 
                 results.push({ title: folderName, unarchived: true, path: finalDest });
@@ -1057,6 +1102,8 @@ app.post('/api/animes/:id/download', async (req, res) => {
         
         // Adicionar processo à lista de downloads ativos
         activeDownloadProcesses.set(title, animeProcess);
+        console.log(`[DOWNLOAD] Processo iniciado para "${title}" (PID: ${animeProcess.pid})`);
+        console.log(`[DOWNLOAD] Downloads ativos:`, Array.from(activeDownloadProcesses.keys()));
         
         animeProcess.stdout.on('data', (data) => {
             console.log(`[${title}]: ${data}`);
@@ -1164,6 +1211,10 @@ app.post('/api/cancel-download', (req, res) => {
     try {
         const { animeTitle } = req.body;
         
+        // Log para debug
+        console.log(`[CANCEL] Tentando cancelar: "${animeTitle}"`);
+        console.log(`[CANCEL] Downloads ativos:`, Array.from(activeDownloadProcesses.keys()));
+        
         // Se não especificar título, cancela todos
         if (!animeTitle || animeTitle === 'all') {
             let canceledCount = 0;
@@ -1184,6 +1235,28 @@ app.post('/api/cancel-download', (req, res) => {
             }
             activeDownloadProcesses.clear();
             
+            // Limpar a fila de downloads do status
+            try {
+                const statusPath = path.join(__dirname, 'download-status.json');
+                if (fs.existsSync(statusPath)) {
+                    const status = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
+                    status.current = null;
+                    status.queue = [];
+                    status.episodeQueue = { episodes: [], currentAnime: null };
+                    fs.writeFileSync(statusPath, JSON.stringify(status, null, 2));
+                    console.log(`[CANCEL ALL] Fila de downloads limpa`);
+                }
+                
+                // Limpar também o arquivo download-queue.json
+                const queuePath = path.join(__dirname, 'download-queue.json');
+                if (fs.existsSync(queuePath)) {
+                    fs.writeFileSync(queuePath, JSON.stringify({ episodes: [], currentAnime: null, lastUpdate: new Date().toISOString() }, null, 2));
+                    console.log(`[CANCEL ALL] Arquivo download-queue.json limpo`);
+                }
+            } catch (statusErr) {
+                console.error('[CANCEL ALL] Erro ao limpar fila:', statusErr);
+            }
+            
             return res.json({ 
                 success: true, 
                 message: `${canceledCount} download(s) cancelado(s)`,
@@ -1191,9 +1264,21 @@ app.post('/api/cancel-download', (req, res) => {
             });
         }
         
-        // Cancelar download específico
-        const process = activeDownloadProcesses.get(animeTitle);
+        // Cancelar download específico - buscar por correspondência exata primeiro
+        let process = activeDownloadProcesses.get(animeTitle);
+        let foundKey = animeTitle;
+        
+        // Se não encontrar, tentar buscar case-insensitive
         if (!process) {
+            const keys = Array.from(activeDownloadProcesses.keys());
+            foundKey = keys.find(key => key.toLowerCase() === animeTitle.toLowerCase());
+            if (foundKey) {
+                process = activeDownloadProcesses.get(foundKey);
+            }
+        }
+        
+        if (!process) {
+            console.log(`[CANCEL] Download não encontrado para "${animeTitle}"`);
             return res.status(404).json({ 
                 success: false, 
                 message: 'Nenhum download ativo encontrado para este anime' 
@@ -1202,17 +1287,44 @@ app.post('/api/cancel-download', (req, res) => {
         
         try {
             if (process.pid) {
+                console.log(`[CANCEL] Cancelando processo PID ${process.pid} para "${foundKey}"`);
                 if (process.platform === 'win32') {
                     spawn('taskkill', ['/pid', process.pid, '/f', '/t']);
                 } else {
                     process.kill('SIGTERM');
                 }
             }
-            activeDownloadProcesses.delete(animeTitle);
+            activeDownloadProcesses.delete(foundKey);
             
+            // Limpar a fila de downloads do status
+            try {
+                const statusPath = path.join(__dirname, 'download-status.json');
+                if (fs.existsSync(statusPath)) {
+                    const status = JSON.parse(fs.readFileSync(statusPath, 'utf8'));
+                    
+                    // Limpar current, queue e episodeQueue
+                    status.current = null;
+                    status.queue = [];
+                    status.episodeQueue = { episodes: [], currentAnime: null };
+                    
+                    fs.writeFileSync(statusPath, JSON.stringify(status, null, 2));
+                    console.log(`[CANCEL] Fila de downloads limpa`);
+                }
+                
+                // Limpar também o arquivo download-queue.json
+                const queuePath = path.join(__dirname, 'download-queue.json');
+                if (fs.existsSync(queuePath)) {
+                    fs.writeFileSync(queuePath, JSON.stringify({ episodes: [], currentAnime: null, lastUpdate: new Date().toISOString() }, null, 2));
+                    console.log(`[CANCEL] Arquivo download-queue.json limpo`);
+                }
+            } catch (statusErr) {
+                console.error('[CANCEL] Erro ao limpar fila:', statusErr);
+            }
+            
+            console.log(`[CANCEL] Download cancelado com sucesso: "${foundKey}"`);
             res.json({ 
                 success: true, 
-                message: `Download de "${animeTitle}" cancelado com sucesso` 
+                message: `Download de "${foundKey}" cancelado com sucesso` 
             });
         } catch (err) {
             console.error('Erro ao cancelar download:', err);
@@ -1698,6 +1810,40 @@ app.get('/api/directories', (req, res) => {
 });
 
 // Função auxiliar para sanitizar nomes de arquivo de maneira consistente
+// Helper function to remove anime from anime-list.txt
+function removeFromAnimeList(titleToRemove) {
+    try {
+        if (!fs.existsSync(ANIME_LIST_FILE)) {
+            console.log(`anime-list.txt não existe, nada a remover`);
+            return;
+        }
+
+        const content = fs.readFileSync(ANIME_LIST_FILE, 'utf8');
+        const lines = content.split('\n');
+        
+        // Filter out the line with the matching title
+        const remaining = lines.filter(line => {
+            if (line.trim() && !line.startsWith('#')) {
+                const parts = line.split('|').map(p => p.trim());
+                // parts[0] is numeric ID, parts[1] is title
+                const title = parts.length > 1 ? parts[1] : parts[0];
+                
+                // Check if title matches (with or without hyphens/spaces)
+                const normalizedTitle = title.replace(/[-\s]/g, '').toLowerCase();
+                const normalizedToRemove = titleToRemove.replace(/[-\s]/g, '').toLowerCase();
+                
+                return normalizedTitle !== normalizedToRemove;
+            }
+            return true; // Keep comments and empty lines
+        });
+
+        fs.writeFileSync(ANIME_LIST_FILE, remaining.join('\n'));
+        console.log(`✓ Removido "${titleToRemove}" da lista de animes`);
+    } catch (error) {
+        console.error(`Erro ao remover "${titleToRemove}" da lista:`, error);
+    }
+}
+
 function sanitizeFilename(filename) {
     // Use a mesma lógica do anime-downloader.js para sanitizar nomes
     const sanitize = require('sanitize-filename');
