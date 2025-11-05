@@ -1265,14 +1265,14 @@ app.post('/api/cancel-download', (req, res) => {
         // Se não especificar título, cancela todos
         if (!animeTitle || animeTitle === 'all') {
             let canceledCount = 0;
-            for (const [title, process] of activeDownloadProcesses.entries()) {
+            for (const [title, childProcess] of activeDownloadProcesses.entries()) {
                 try {
                     // No Windows, usar taskkill para matar o processo e seus filhos
-                    if (process.pid) {
+                    if (childProcess.pid) {
                         if (process.platform === 'win32') {
-                            spawn('taskkill', ['/pid', process.pid, '/f', '/t']);
+                            spawn('taskkill', ['/pid', childProcess.pid, '/f', '/t']);
                         } else {
-                            process.kill('SIGTERM');
+                            childProcess.kill('SIGTERM');
                         }
                         canceledCount++;
                     }
@@ -1312,19 +1312,19 @@ app.post('/api/cancel-download', (req, res) => {
         }
         
         // Cancelar download específico - buscar por correspondência exata primeiro
-        let process = activeDownloadProcesses.get(animeTitle);
+        let childProcess = activeDownloadProcesses.get(animeTitle);
         let foundKey = animeTitle;
         
         // Se não encontrar, tentar buscar case-insensitive
-        if (!process) {
+        if (!childProcess) {
             const keys = Array.from(activeDownloadProcesses.keys());
             foundKey = keys.find(key => key.toLowerCase() === animeTitle.toLowerCase());
             if (foundKey) {
-                process = activeDownloadProcesses.get(foundKey);
+                childProcess = activeDownloadProcesses.get(foundKey);
             }
         }
         
-        if (!process) {
+        if (!childProcess) {
             console.log(`[CANCEL] Download não encontrado para "${animeTitle}"`);
             return res.status(404).json({ 
                 success: false, 
@@ -1333,12 +1333,12 @@ app.post('/api/cancel-download', (req, res) => {
         }
         
         try {
-            if (process.pid) {
-                console.log(`[CANCEL] Cancelando processo PID ${process.pid} para "${foundKey}"`);
+            if (childProcess.pid) {
+                console.log(`[CANCEL] Cancelando processo PID ${childProcess.pid} para "${foundKey}"`);
                 if (process.platform === 'win32') {
-                    spawn('taskkill', ['/pid', process.pid, '/f', '/t']);
+                    spawn('taskkill', ['/pid', childProcess.pid, '/f', '/t']);
                 } else {
-                    process.kill('SIGTERM');
+                    childProcess.kill('SIGTERM');
                 }
             }
             activeDownloadProcesses.delete(foundKey);
@@ -1823,22 +1823,40 @@ app.get('/api/directories', (req, res) => {
         // Se estamos no Windows (process.platform === 'win32')
         if (!basePath && process.platform === 'win32') {
             // No Windows, vamos listar os drives disponíveis
-            const { execSync } = require('child_process');
-            const drivesOutput = execSync('wmic logicaldisk get caption').toString();
-            const drives = drivesOutput
-                .split('\r\r\n')
-                .filter(line => /^[A-Z]:/.test(line.trim()))
-                .map(drive => ({ 
-                    name: drive.trim(), 
-                    path: drive.trim() + '\\',
+            try {
+                const { execSync } = require('child_process');
+                const drivesOutput = execSync('wmic logicaldisk get caption', { encoding: 'utf8' });
+                const drives = drivesOutput
+                    .split('\n')
+                    .map(line => line.trim())
+                    .filter(line => /^[A-Z]:/.test(line))
+                    .map(drive => ({ 
+                        name: drive, 
+                        path: drive + '\\',
+                        isDirectory: true
+                    }));
+                    
+                return res.json(drives);
+            } catch (err) {
+                console.error('[/api/directories] Error listing drives on Windows:', err.message);
+                // Fallback to listing from C:\ if wmic fails
+                return res.json([{ name: 'C:', path: 'C:\\', isDirectory: true }]);
+            }
+        } else if (!basePath && process.platform !== 'win32') {
+            // No Linux/Mac, listar os principais diretórios de /
+            const rootDirs = ['/home', '/media', '/mnt', '/opt', '/srv', '/tmp', '/usr', '/var'];
+            const directories = rootDirs
+                .filter(dir => fs.existsSync(dir))
+                .map(dir => ({
+                    name: path.basename(dir),
+                    path: dir,
                     isDirectory: true
                 }));
-                
-            return res.json(drives);
+            return res.json(directories);
         }
         
         // Para qualquer outro caso, listamos os diretórios do caminho fornecido
-        const directoryPath = basePath || '/';
+        const directoryPath = basePath || (process.platform === 'win32' ? 'C:\\' : '/');
         const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
         
         const directories = entries
@@ -1913,7 +1931,7 @@ function sanitizeAnimeNameForFileSystem(name) {
     return sanitize(cleanedName);
 }
 
-// Add this utility function to safely open folders (keep this)
+// Add this utility function to safely open folders (cross-platform)
 function safeOpenFolder(folderPath, res) {
     // Create the folder if it doesn't exist
     if (!fs.existsSync(folderPath)) {
@@ -1926,8 +1944,19 @@ function safeOpenFolder(folderPath, res) {
         }
     }
     
+    // Determine OS-specific command to open folder
+    let openCommand;
+    if (process.platform === 'win32') {
+        openCommand = `explorer "${folderPath}"`;
+    } else if (process.platform === 'darwin') {
+        openCommand = `open "${folderPath}"`;
+    } else {
+        // Linux/Unix - xdg-open is the standard way to open files/folders
+        openCommand = `xdg-open "${folderPath}"`;
+    }
+    
     // Try to open the folder
-    exec(`explorer "${folderPath}"`, (error) => {
+    exec(openCommand, (error) => {
         if (error) {
             console.error(`Failed to open folder: ${error.message}`);
             
@@ -1935,7 +1964,16 @@ function safeOpenFolder(folderPath, res) {
             const parentFolder = path.dirname(folderPath);
             console.log(`Attempting to open parent folder: ${parentFolder}`);
             
-            exec(`explorer "${parentFolder}"`, (parentError) => {
+            let parentCommand;
+            if (process.platform === 'win32') {
+                parentCommand = `explorer "${parentFolder}"`;
+            } else if (process.platform === 'darwin') {
+                parentCommand = `open "${parentFolder}"`;
+            } else {
+                parentCommand = `xdg-open "${parentFolder}"`;
+            }
+            
+            exec(parentCommand, (parentError) => {
                 if (parentError) {
                     return res.status(500).json({ 
                         message: `Failed to open folder. Path may be too long or folder doesn't exist.`
