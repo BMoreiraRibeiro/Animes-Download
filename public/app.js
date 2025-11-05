@@ -94,6 +94,44 @@ let selectedAnimes = new Set();
 let currentDownloadingAnime = null; // Track the anime currently being downloaded
 let modalOpenedAt = null; // Track when the modal was opened
 
+// Detect if the page background is pure black and apply a dark theme when
+// the user/system is NOT already in dark mode. This covers the request:
+// "o fundo da pagina é preto, senão for dark mode, muda para um tema dark"
+function checkAndApplyDarkTheme() {
+    try {
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const computedBg = getComputedStyle(document.body).backgroundColor || '';
+
+        // If user already prefers dark, nothing to do
+        if (prefersDark) return;
+
+        // Normalize and check for pure black (rgb(0, 0, 0))
+        const rgbMatch = computedBg.match(/rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+        let isPureBlack = false;
+        if (rgbMatch) {
+            const r = parseInt(rgbMatch[1], 10);
+            const g = parseInt(rgbMatch[2], 10);
+            const b = parseInt(rgbMatch[3], 10);
+            isPureBlack = (r === 0 && g === 0 && b === 0);
+        } else {
+            // Some environments might return 'black' or '#000'
+            const normalized = computedBg.trim().toLowerCase();
+            if (normalized === 'black' || normalized === '#000' || normalized === '#000000') {
+                isPureBlack = true;
+            }
+        }
+
+        if (isPureBlack) {
+            document.body.classList.add('dark-theme');
+            // Also set on documentElement for selectors that might target it
+            document.documentElement.classList.add('dark-theme');
+            console.debug('[theme] Applied dark-theme because page background is pure black and no prefers-color-scheme: dark');
+        }
+    } catch (err) {
+        console.warn('[theme] Error while checking/applying dark theme:', err);
+    }
+}
+
 // ========== Toast Functions ==========
 function showToast(message, type = 'info', title = 'Notificação') {
     const toastContainer = document.querySelector('.toast-container');
@@ -1744,6 +1782,13 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFeatured();
     loadAnimes();
     loadConfig();
+    // Apply dark theme automatically if the page background is pure black
+    // and the user does not explicitly prefer dark mode.
+    if (typeof checkAndApplyDarkTheme === 'function') {
+        checkAndApplyDarkTheme();
+        // Run again shortly after to cover late-applied styles
+        setTimeout(checkAndApplyDarkTheme, 500);
+    }
     
     // Event listeners para as abas - carregar conteúdo ao clicar
     const featuredTab = document.getElementById('featured-tab');

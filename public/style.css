@@ -295,3 +295,63 @@ body {
     background-color: #6c757d;
     border-color: #6c757d;
 }
+
+/* Dark theme styles - applied when body has class `dark-theme` */
+body.dark-theme {
+    background-color: #0b0b0d !important;
+    color: #e6e6e6 !important;
+}
+
+body.dark-theme .anime-card {
+    background-color: #101214;
+    color: #e6e6e6;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.03);
+}
+
+body.dark-theme .card {
+    background-color: #0f1113;
+    color: #e6e6e6;
+}
+
+body.dark-theme .anime-card-img-placeholder {
+    background-color: #1b1b1d;
+    color: #ddd;
+}
+
+body.dark-theme .anime-card-img::after {
+    background: linear-gradient(0deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 70%, rgba(0,0,0,0.15) 100%);
+}
+
+body.dark-theme .card-title,
+body.dark-theme .anime-card-img-title,
+body.dark-theme .card-body,
+body.dark-theme .badge,
+body.dark-theme .btn,
+body.dark-theme .text-muted {
+    color: #e6e6e6 !important;
+}
+
+body.dark-theme .card-footer {
+    background: transparent;
+}
+
+/* Tweak badges */
+body.dark-theme .badge.bg-warning {
+    background-color: #ffc107;
+    color: #212529;
+}
+
+/* Make inputs and checkboxes visible in dark */
+body.dark-theme input,
+body.dark-theme select,
+body.dark-theme textarea {
+    background-color: #141517;
+    color: #e6e6e6;
+    border-color: rgba(255,255,255,0.06);
+}
+
+/* Smooth transition when theme toggles */
+body, .card, .anime-card, .anime-card-img-placeholder {
+    transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}

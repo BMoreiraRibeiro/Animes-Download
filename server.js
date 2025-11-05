@@ -80,17 +80,33 @@ try {
     fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
 }
 
-// Garantir que a pasta de downloads existe
-const DOWNLOAD_FOLDER = config.downloadFolder || path.join(__dirname, 'downloads');
-if (!fs.existsSync(DOWNLOAD_FOLDER)) {
-    fs.mkdirSync(DOWNLOAD_FOLDER, { recursive: true });
+// Garantir que a pasta de downloads existe (variáveis em runtime, atualizáveis via /api/config)
+let DOWNLOAD_FOLDER = config.downloadFolder || path.join(__dirname, 'downloads');
+function ensureDownloadFolder(folder) {
+    try {
+        if (!fs.existsSync(folder)) {
+            fs.mkdirSync(folder, { recursive: true });
+            console.log(`[INIT] Created download folder: ${folder}`);
+        }
+    } catch (err) {
+        console.error(`[INIT] Failed to ensure download folder ${folder}:`, err && err.message);
+    }
 }
+ensureDownloadFolder(DOWNLOAD_FOLDER);
 
-// Folder to hold archived anime folders
-const ARCHIVE_FOLDER = path.join(DOWNLOAD_FOLDER, 'Arquivados');
-if (!fs.existsSync(ARCHIVE_FOLDER)) {
-    fs.mkdirSync(ARCHIVE_FOLDER, { recursive: true });
+// Folder to hold archived anime folders (derived from DOWNLOAD_FOLDER)
+let ARCHIVE_FOLDER = path.join(DOWNLOAD_FOLDER, 'Arquivados');
+function ensureArchiveFolder(folder) {
+    try {
+        if (!fs.existsSync(folder)) {
+            fs.mkdirSync(folder, { recursive: true });
+            console.log(`[INIT] Created archive folder: ${folder}`);
+        }
+    } catch (err) {
+        console.error(`[INIT] Failed to ensure archive folder ${folder}:`, err && err.message);
+    }
 }
+ensureArchiveFolder(ARCHIVE_FOLDER);
 
 // Ensure anime list exists
 if (!fs.existsSync(ANIME_LIST_FILE)) {
@@ -264,6 +280,18 @@ try {
 // Get anime list (excluindo arquivados)
 app.get('/api/animes', (req, res) => {
     try {
+        console.log('[API /animes] Request received from', req.ip || (req.connection && req.connection.remoteAddress));
+        try {
+            console.log(`[API /animes] ANIME_LIST_FILE exists: ${fs.existsSync(ANIME_LIST_FILE)} size: ${fs.existsSync(ANIME_LIST_FILE) ? fs.statSync(ANIME_LIST_FILE).size : 0}`);
+        } catch (err) {
+            console.error('[API /animes] Error checking anime list file:', err && err.message);
+        }
+        try {
+            console.log(`[API /animes] DOWNLOAD_FOLDER exists: ${fs.existsSync(DOWNLOAD_FOLDER)}`);
+            console.log(`[API /animes] ARCHIVE_FOLDER exists: ${fs.existsSync(ARCHIVE_FOLDER)}`);
+        } catch (err) {
+            console.error('[API /animes] Error checking folders:', err && err.message);
+        }
         // Use readAnimeList to get entries with persistent ids
         const list = readAnimeList();
 
@@ -398,8 +426,27 @@ app.get('/api/config', (req, res) => {
 // Update config
 app.put('/api/config', (req, res) => {
     try {
-        const config = { ...req.body };
-        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+        // Persist new config to disk and apply runtime changes (download/archive folders)
+        const newConfig = { ...req.body };
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(newConfig, null, 2));
+
+        // Update in-memory config
+        config = newConfig;
+
+        // Update DOWNLOAD_FOLDER and ARCHIVE_FOLDER at runtime
+        if (config.downloadFolder) {
+            const newDownloadFolder = config.downloadFolder;
+            if (newDownloadFolder !== DOWNLOAD_FOLDER) {
+                console.log(`[CONFIG] Updating DOWNLOAD_FOLDER: ${DOWNLOAD_FOLDER} -> ${newDownloadFolder}`);
+                DOWNLOAD_FOLDER = newDownloadFolder;
+                ensureDownloadFolder(DOWNLOAD_FOLDER);
+
+                // Recompute archive folder and ensure it exists
+                ARCHIVE_FOLDER = path.join(DOWNLOAD_FOLDER, 'Arquivados');
+                ensureArchiveFolder(ARCHIVE_FOLDER);
+            }
+        }
+
         res.json(config);
     } catch (error) {
         console.error('Error updating config:', error);
