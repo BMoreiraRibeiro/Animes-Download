@@ -1,0 +1,4 @@
+# Add your anime list here
+# Format: id | Title | Quality | Starting Episode | "animeUrl" | "imageUrl"
+0 | Sozai-Saishuka-no-Isekai-Ryokouki | SD | 1 | "https://animefire.plus/animes/sozai-saishuka-no-isekai-ryokouki-todos-os-episodios" | ""
+1 | Ansatsusha-de-Aru-Ore-no-Status-ga-Yuusha-yori-mo-Akiraka-ni-Tsuyoi-no-da-ga | SD | 1 | "https://animefire.plus/animes/ansatsusha-de-aru-ore-no-status-ga-yuusha-yori-mo-akiraka-ni-tsuyoi-no-da-ga-todos-os-episodios" | "https://animefire.plus/img/animes/ansatsusha-de-aru-ore-no-status-ga-yuusha-yori-mo-akiraka-ni-tsuyoi-no-da-ga-large.webp"
