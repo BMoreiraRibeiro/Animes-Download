@@ -1871,16 +1871,33 @@ app.put('/api/download-folder', (req, res) => {
         if (!fs.existsSync(folder)) {
             try {
                 fs.mkdirSync(folder, { recursive: true });
+                console.log(`[CONFIG] Created new download folder: ${folder}`);
             } catch (error) {
                 return res.status(400).json({ error: `Could not create folder: ${error.message}` });
             }
         }
         
-        // Atualizar configuração
+        // Atualizar configuração em memória
         config.downloadFolder = folder;
-        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
         
-        res.json({ folder });
+        // Salvar no arquivo config.json
+        fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2));
+        console.log(`[CONFIG] Saved downloadFolder to config.json: ${folder}`);
+        
+        // Atualizar variáveis runtime (DOWNLOAD_FOLDER e ARCHIVE_FOLDER)
+        const oldDownloadFolder = DOWNLOAD_FOLDER;
+        DOWNLOAD_FOLDER = folder;
+        ensureDownloadFolder(DOWNLOAD_FOLDER);
+        
+        // Recompute archive folder based on new download folder
+        ARCHIVE_FOLDER = path.join(DOWNLOAD_FOLDER, 'Arquivados');
+        ensureArchiveFolder(ARCHIVE_FOLDER);
+        
+        console.log(`[CONFIG] Updated runtime folders:`);
+        console.log(`[CONFIG]   DOWNLOAD_FOLDER: ${oldDownloadFolder} -> ${DOWNLOAD_FOLDER}`);
+        console.log(`[CONFIG]   ARCHIVE_FOLDER: ${ARCHIVE_FOLDER}`);
+        
+        res.json({ folder, downloadFolder: DOWNLOAD_FOLDER, archiveFolder: ARCHIVE_FOLDER });
     } catch (error) {
         console.error('Error updating download folder:', error);
         res.status(500).json({ error: error.message });

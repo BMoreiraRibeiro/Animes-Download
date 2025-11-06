@@ -799,8 +799,14 @@ async function saveDownloadFolder() {
         
         if (!response.ok) {
             const error = await response.json();
-            throw new Error(error.message || 'Error saving download folder');
+            throw new Error(error.error || error.message || 'Error saving download folder');
         }
+        
+        const result = await response.json();
+        console.log('[SAVE FOLDER] Server response:', result);
+        
+        // Reload the folder from server to confirm it persisted
+        await loadDownloadFolder();
         
         showAlert('Pasta de download salva com sucesso!', 'success');
     } catch (error) {
