@@ -13,9 +13,11 @@ downloads/
 temp-*.txt
 anime-images-cache.json
 download-status.json
+download-queue.json
 
-# User configuration
+# User configuration and data
 config.json
+anime-list.txt
 
 # OS files
 .DS_Store

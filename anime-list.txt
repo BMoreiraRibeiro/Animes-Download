@@ -1,2 +1,0 @@
-# Add your anime list here
-# Format: id | Title | Quality | Starting Episode | "animeUrl" | "imageUrl"
