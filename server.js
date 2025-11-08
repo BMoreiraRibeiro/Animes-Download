@@ -746,31 +746,31 @@ app.post('/api/animes/archive', (req, res) => {
                     continue;
                 }
 
+                // Ensure archive parent folder exists
+                if (!fs.existsSync(ARCHIVE_FOLDER)) {
+                    console.log(`[ARCHIVE] Creating archive folder: ${ARCHIVE_FOLDER}`);
+                    try {
+                        fs.mkdirSync(ARCHIVE_FOLDER, { recursive: true });
+                        console.log(`[ARCHIVE] ✓ Archive folder created successfully`);
+                    } catch (mkdirErr) {
+                        console.error(`[ARCHIVE] ✗ Failed to create archive folder:`, mkdirErr.message);
+                        results.push({ title, archived: false, error: `Failed to create archive folder: ${mkdirErr.message}` });
+                        continue;
+                    }
+                } else {
+                    console.log(`[ARCHIVE] Archive folder already exists: ${ARCHIVE_FOLDER}`);
+                }
+
+                // If destination exists, try to create a unique name
+                let finalDest = destFolder;
+                let counter = 1;
+                while (fs.existsSync(finalDest)) {
+                    finalDest = path.join(ARCHIVE_FOLDER, `${safeName}-${counter}`);
+                    counter++;
+                }
+
                 if (srcFolder && fs.existsSync(srcFolder)) {
-                    // Ensure dest parent exists
-                    if (!fs.existsSync(ARCHIVE_FOLDER)) {
-                        console.log(`[ARCHIVE] Creating archive folder: ${ARCHIVE_FOLDER}`);
-                        try {
-                            fs.mkdirSync(ARCHIVE_FOLDER, { recursive: true });
-                            console.log(`[ARCHIVE] ✓ Archive folder created successfully`);
-                        } catch (mkdirErr) {
-                            console.error(`[ARCHIVE] ✗ Failed to create archive folder:`, mkdirErr.message);
-                            results.push({ title, archived: false, error: `Failed to create archive folder: ${mkdirErr.message}` });
-                            continue;
-                        }
-                    } else {
-                        console.log(`[ARCHIVE] Archive folder already exists: ${ARCHIVE_FOLDER}`);
-                    }
-
-                    // If destination exists, try to create a unique name
-                    let finalDest = destFolder;
-                    let counter = 1;
-                    while (fs.existsSync(finalDest)) {
-                        finalDest = path.join(ARCHIVE_FOLDER, `${safeName}-${counter}`);
-                        counter++;
-                    }
-
-                    // Perform move (with fallback to copy+delete if rename fails across filesystems)
+                    // Case 1: Folder exists - move it to archive
                     console.log(`[ARCHIVE] Moving: ${srcFolder} → ${finalDest}`);
                     try {
                         fs.renameSync(srcFolder, finalDest);
@@ -804,28 +804,34 @@ app.post('/api/animes/archive', (req, res) => {
                     
                     results.push({ title, archived: true, path: finalDest, movedFrom: chosenName });
                 } else {
-                    // Folder not found - provide detailed error
-                    console.warn(`[ARCHIVE] ⚠ Folder not found for archiving: "${title}"`);
-                    console.warn(`[ARCHIVE] Tried candidates:`, candidates);
-                    console.warn(`[ARCHIVE] In DOWNLOAD_FOLDER: ${DOWNLOAD_FOLDER}`);
+                    // Case 2: No folder exists (anime never downloaded) - create empty archive folder
+                    console.warn(`[ARCHIVE] ⚠ Folder not found, creating empty archive folder for: "${title}"`);
                     
-                    // List what's actually in DOWNLOAD_FOLDER to help debug
                     try {
-                        const actualFolders = fs.readdirSync(DOWNLOAD_FOLDER, { withFileTypes: true })
-                            .filter(e => e.isDirectory())
-                            .map(e => e.name);
-                        console.warn(`[ARCHIVE] Actual folders in DOWNLOAD_FOLDER:`, actualFolders.slice(0, 10)); // Show first 10
-                    } catch (listErr) {
-                        console.error(`[ARCHIVE] Could not list DOWNLOAD_FOLDER:`, listErr.message);
+                        // Create empty folder in archive
+                        fs.mkdirSync(finalDest, { recursive: true });
+                        console.log(`[ARCHIVE] ✓ Created empty archive folder: ${finalDest}`);
+                        
+                        // Preserve image URL in cache
+                        const imageUrl = imagesToPreserve[title] || animeImagesCache[title];
+                        if (imageUrl) {
+                            const finalFolderName = path.basename(finalDest);
+                            animeImagesCache[finalFolderName] = imageUrl;
+                            animeImagesCache[safeName] = imageUrl;
+                            animeImagesCache[title] = imageUrl;
+                            fs.writeFileSync(IMAGES_CACHE_FILE, JSON.stringify(animeImagesCache, null, 2));
+                            console.log(`✓ Saved image URL for archived anime (no downloads): ${title}`);
+                        }
+                        
+                        results.push({ title, archived: true, path: finalDest, noDownloads: true });
+                    } catch (createErr) {
+                        console.error(`[ARCHIVE] ✗ Failed to create archive folder:`, createErr.message);
+                        results.push({ 
+                            title, 
+                            archived: false, 
+                            error: `Failed to create archive folder: ${createErr.message}`
+                        });
                     }
-                    
-                    results.push({ 
-                        title, 
-                        archived: false, 
-                        error: 'Pasta não encontrada no sistema de arquivos', 
-                        candidates,
-                        downloadFolder: DOWNLOAD_FOLDER
-                    });
                 }
             } catch (err) {
                 console.error(`[ARCHIVE] Error archiving ${title}:`, err);

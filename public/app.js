@@ -628,7 +628,36 @@ async function loadArchived() {
             return;
         }
 
-        archivedList.innerHTML = archived.map(anime => {
+        // Ordenar arquivados alfabeticamente
+        const sortedArchived = [...archived].sort((a, b) => {
+            const titleA = (a.displayTitle || a.title.replace(/-/g, ' ')).toLowerCase();
+            const titleB = (b.displayTitle || b.title.replace(/-/g, ' ')).toLowerCase();
+            return titleA.localeCompare(titleB);
+        });
+        
+        // Agrupar por letra inicial
+        const groupedArchived = {};
+        sortedArchived.forEach(anime => {
+            const title = (anime.displayTitle || anime.title.replace(/-/g, ' ')).trim();
+            const firstLetter = title.charAt(0).toUpperCase();
+            const letter = /[A-Z]/.test(firstLetter) ? firstLetter : '#';
+            
+            if (!groupedArchived[letter]) {
+                groupedArchived[letter] = [];
+            }
+            groupedArchived[letter].push(anime);
+        });
+        
+        // Ordenar letras
+        const letters = Object.keys(groupedArchived).sort((a, b) => {
+            if (a === '#') return 1;
+            if (b === '#') return -1;
+            return a.localeCompare(b);
+        });
+
+        archivedList.innerHTML = letters.map(letter => {
+            const animesInGroup = groupedArchived[letter];
+            const cardsHtml = animesInGroup.map(anime => {
             const animeTitle = anime.displayTitle || anime.title.replace(/-/g, ' ');
             const imageSection = anime.imageUrl ?
                 `<div class="anime-card-img" style="background-image: url('${anime.imageUrl}')">
@@ -655,6 +684,16 @@ async function loadArchived() {
                     </div>
                 </div>
             `;
+        }).join('');
+        
+        return `
+            <div class="col-12 mb-3">
+                <h3 class="border-bottom pb-2 mb-3">
+                    <span class="badge bg-primary fs-4">${letter}</span>
+                </h3>
+            </div>
+            ${cardsHtml}
+        `;
         }).join('');
 
         // Hook action handlers for archived items (view episodes, open folder, unarchive, delete)
@@ -931,7 +970,36 @@ function renderAnimes() {
         return;
     }
     
-    animeList.innerHTML = animes.map(anime => {
+    // Ordenar animes alfabeticamente por displayTitle
+    const sortedAnimes = [...animes].sort((a, b) => {
+        const titleA = (a.displayTitle || a.title.replace(/-/g, ' ')).toLowerCase();
+        const titleB = (b.displayTitle || b.title.replace(/-/g, ' ')).toLowerCase();
+        return titleA.localeCompare(titleB);
+    });
+    
+    // Agrupar por letra inicial
+    const groupedAnimes = {};
+    sortedAnimes.forEach(anime => {
+        const title = (anime.displayTitle || anime.title.replace(/-/g, ' ')).trim();
+        const firstLetter = title.charAt(0).toUpperCase();
+        const letter = /[A-Z]/.test(firstLetter) ? firstLetter : '#';
+        
+        if (!groupedAnimes[letter]) {
+            groupedAnimes[letter] = [];
+        }
+        groupedAnimes[letter].push(anime);
+    });
+    
+    // Renderizar agrupado por letra
+    const letters = Object.keys(groupedAnimes).sort((a, b) => {
+        if (a === '#') return 1;
+        if (b === '#') return -1;
+        return a.localeCompare(b);
+    });
+    
+    animeList.innerHTML = letters.map(letter => {
+        const animesInGroup = groupedAnimes[letter];
+        const cardsHtml = animesInGroup.map(anime => {
         // Usar displayTitle (sem hífens) para exibição
         const animeTitle = anime.displayTitle || anime.title.replace(/-/g, ' ');
         
@@ -1004,6 +1072,16 @@ function renderAnimes() {
                     </div>
                 </div>
             </div>
+        `;
+        }).join('');
+        
+        return `
+            <div class="col-12 mb-3">
+                <h3 class="border-bottom pb-2 mb-3">
+                    <span class="badge bg-primary fs-4">${letter}</span>
+                </h3>
+            </div>
+            ${cardsHtml}
         `;
     }).join('');
     
