@@ -885,11 +885,15 @@ async function loadDirectories(basePath = null) {
         updateBreadcrumb();
         
         // Update folder list
-        folderList.innerHTML = directories.map(dir => `
-            <a href="#" class="list-group-item list-group-item-action folder-item" data-path="${dir.path}">
-                <i class="bi bi-folder"></i> ${dir.name}
-            </a>
-        `).join('');
+        folderList.innerHTML = directories.map(dir => {
+            const icon = dir.isSymlink ? 'bi-link-45deg' : 'bi-folder';
+            const badge = dir.isSymlink ? '<span class="badge bg-info ms-2">link</span>' : '';
+            return `
+                <a href="#" class="list-group-item list-group-item-action folder-item" data-path="${dir.path}">
+                    <i class="bi ${icon}"></i> ${dir.name}${badge}
+                </a>
+            `;
+        }).join('');
         
         // Add click events to folder items
         document.querySelectorAll('.folder-item').forEach(item => {

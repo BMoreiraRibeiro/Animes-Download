@@ -1939,15 +1939,64 @@ app.get('/api/directories', (req, res) => {
                 return res.json([{ name: 'C:', path: 'C:\\', isDirectory: true }]);
             }
         } else if (!basePath && process.platform !== 'win32') {
-            // No Linux/Mac, listar os principais diretórios de /
+            // No Linux/Mac, listar os principais diretórios de / e incluir symlinks
             const rootDirs = ['/home', '/media', '/mnt', '/opt', '/srv', '/tmp', '/usr', '/var'];
-            const directories = rootDirs
-                .filter(dir => fs.existsSync(dir))
-                .map(dir => ({
-                    name: path.basename(dir),
-                    path: dir,
-                    isDirectory: true
-                }));
+            const directories = [];
+            
+            for (const dir of rootDirs) {
+                if (fs.existsSync(dir)) {
+                    try {
+                        const stats = fs.lstatSync(dir);
+                        directories.push({
+                            name: path.basename(dir),
+                            path: dir,
+                            isDirectory: true,
+                            isSymlink: stats.isSymbolicLink()
+                        });
+                    } catch (err) {
+                        console.log(`[/api/directories] Error checking ${dir}:`, err.message);
+                    }
+                }
+            }
+            
+            // Also check for symlinks directly in root
+            try {
+                const rootEntries = fs.readdirSync('/', { withFileTypes: true });
+                for (const entry of rootEntries) {
+                    const fullPath = path.join('/', entry.name);
+                    // Skip already added common directories
+                    if (rootDirs.includes(fullPath)) continue;
+                    
+                    try {
+                        const stats = fs.lstatSync(fullPath);
+                        if (stats.isSymbolicLink()) {
+                            // Check if symlink points to a directory
+                            const realStats = fs.statSync(fullPath);
+                            if (realStats.isDirectory()) {
+                                directories.push({
+                                    name: entry.name,
+                                    path: fullPath,
+                                    isDirectory: true,
+                                    isSymlink: true
+                                });
+                            }
+                        } else if (stats.isDirectory() && !entry.name.startsWith('.')) {
+                            // Add other visible root directories
+                            directories.push({
+                                name: entry.name,
+                                path: fullPath,
+                                isDirectory: true,
+                                isSymlink: false
+                            });
+                        }
+                    } catch (err) {
+                        // Skip entries we can't access
+                    }
+                }
+            } catch (err) {
+                console.log(`[/api/directories] Error reading root directory:`, err.message);
+            }
+            
             return res.json(directories);
         }
         
@@ -1955,13 +2004,41 @@ app.get('/api/directories', (req, res) => {
         const directoryPath = basePath || (process.platform === 'win32' ? 'C:\\' : '/');
         const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
         
-        const directories = entries
-            .filter(entry => entry.isDirectory())
-            .map(dir => ({
-                name: dir.name,
-                path: path.join(directoryPath, dir.name),
-                isDirectory: true
-            }));
+        const directories = [];
+        for (const entry of entries) {
+            try {
+                const fullPath = path.join(directoryPath, entry.name);
+                const stats = fs.lstatSync(fullPath);
+                
+                // Include directories and symlinks that point to directories
+                if (stats.isDirectory()) {
+                    directories.push({
+                        name: entry.name,
+                        path: fullPath,
+                        isDirectory: true,
+                        isSymlink: false
+                    });
+                } else if (stats.isSymbolicLink()) {
+                    // Check if symlink points to a directory
+                    try {
+                        const realStats = fs.statSync(fullPath);
+                        if (realStats.isDirectory()) {
+                            directories.push({
+                                name: entry.name,
+                                path: fullPath,
+                                isDirectory: true,
+                                isSymlink: true
+                            });
+                        }
+                    } catch (symlinkErr) {
+                        // Broken symlink or permission issue, skip it
+                        console.log(`[/api/directories] Skipping broken symlink: ${fullPath}`);
+                    }
+                }
+            } catch (err) {
+                console.log(`[/api/directories] Error checking entry ${entry.name}:`, err.message);
+            }
+        }
             
         res.json(directories);
     } catch (error) {
