@@ -2013,9 +2013,12 @@ app.get('/api/directories', (req, res) => {
         directoryPath = path.normalize(directoryPath);
         
         // Ensure absolute path on Unix systems
-        const absolutePath = (process.platform !== 'win32' && !path.isAbsolute(directoryPath)) 
-            ? path.join('/', directoryPath) 
-            : directoryPath;
+        let absolutePath = directoryPath || '/';
+
+        // Garantir slash inicial no Linux
+        if (process.platform !== 'win32' && !absolutePath.startsWith('/')) {
+            absolutePath = '/' + absolutePath;
+        }
         
         const entries = fs.readdirSync(absolutePath, { withFileTypes: true });
         
