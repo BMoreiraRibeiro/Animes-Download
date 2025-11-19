@@ -729,8 +729,9 @@ app.post('/api/animes/archive', (req, res) => {
                 }
             }
 
-            // Destination folder name uses the sanitized safeName
-            const destFolder = path.join(ARCHIVE_FOLDER, safeName);
+            // Destination folder name - preserve original folder name if found, otherwise use sanitized
+            const destFolderName = chosenName || safeName;
+            const destFolder = path.join(ARCHIVE_FOLDER, destFolderName);
             console.log(`[ARCHIVE] Destination folder will be: ${destFolder}`);
 
             try {
@@ -765,7 +766,7 @@ app.post('/api/animes/archive', (req, res) => {
                 let finalDest = destFolder;
                 let counter = 1;
                 while (fs.existsSync(finalDest)) {
-                    finalDest = path.join(ARCHIVE_FOLDER, `${safeName}-${counter}`);
+                    finalDest = path.join(ARCHIVE_FOLDER, `${destFolderName}-${counter}`);
                     counter++;
                 }
 
@@ -1049,13 +1050,16 @@ app.post('/api/animes/unarchive', (req, res) => {
             
             // Verificar se a pasta existe
             let srcFolder = null;
+            let realFolderName = folderName; // Nome real da pasta encontrada
             if (fs.existsSync(src) && fs.lstatSync(src).isDirectory()) {
                 srcFolder = src;
+                realFolderName = folderName;
             } else {
                 // Try sanitized version
                 const altSrc = path.join(ARCHIVE_FOLDER, safeName);
                 if (fs.existsSync(altSrc) && fs.lstatSync(altSrc).isDirectory()) {
                     srcFolder = altSrc;
+                    realFolderName = safeName;
                 }
             }
 
@@ -1064,12 +1068,12 @@ app.post('/api/animes/unarchive', (req, res) => {
                 continue;
             }
 
-            // Target destination - usar o nome da pasta original
-            const destBase = path.join(DOWNLOAD_FOLDER, folderName);
+            // Target destination - usar o nome real da pasta encontrada no arquivo
+            const destBase = path.join(DOWNLOAD_FOLDER, realFolderName);
             let finalDest = destBase;
             let counter = 1;
             while (fs.existsSync(finalDest)) {
-                finalDest = path.join(DOWNLOAD_FOLDER, `${folderName}-${counter}`);
+                finalDest = path.join(DOWNLOAD_FOLDER, `${realFolderName}-${counter}`);
                 counter++;
             }
 
@@ -1079,15 +1083,17 @@ app.post('/api/animes/unarchive', (req, res) => {
                 // Re-add to anime-list if not present
                 const existingEntries = readAnimeList();
                 
-                // Usar o nome da pasta (que pode ter espaços) para adicionar à lista
-                const titleForList = folderName.replace(/\s+/g, '-');
+                // Usar o nome real da pasta para criar o título na lista
+                const titleForList = realFolderName.replace(/\s+/g, '-');
                 
                 // Verificar se já existe
                 const exists = existingEntries.some(e => e.title === titleForList);
                 
                 if (!exists) {
-                    // Try to retrieve imageUrl from cache
-                    let imageUrl = animeImagesCache[folderName] || animeImagesCache[titleForList] || '';
+                    // Try to retrieve imageUrl from cache with multiple key variations
+                    let imageUrl = animeImagesCache[realFolderName] || 
+                                   animeImagesCache[folderName] || 
+                                   animeImagesCache[titleForList] || '';
                     
                     // Gerar novo ID
                     const usedIds = new Set(existingEntries.map(e => e.id).filter(id => id !== null));
