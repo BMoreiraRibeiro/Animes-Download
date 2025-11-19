@@ -2001,7 +2001,16 @@ app.get('/api/directories', (req, res) => {
         }
         
         // Para qualquer outro caso, listamos os diretórios do caminho fornecido
-        const directoryPath = basePath || (process.platform === 'win32' ? 'C:\\' : '/');
+        // Caminho fornecido pelo user OU raiz
+        let directoryPath = basePath || (process.platform === 'win32' ? 'C:\\' : '/');
+
+        // Forçar caminhos absolutos no Linux/Mac
+        if (process.platform !== 'win32' && directoryPath && !directoryPath.startsWith('/')) {
+            directoryPath = '/' + directoryPath;
+        }
+
+        // Normalizar o caminho (remove // etc)
+        directoryPath = path.normalize(directoryPath);
         
         // Ensure absolute path on Unix systems
         const absolutePath = (process.platform !== 'win32' && !path.isAbsolute(directoryPath)) 
