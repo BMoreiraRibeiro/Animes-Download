@@ -2002,12 +2002,18 @@ app.get('/api/directories', (req, res) => {
         
         // Para qualquer outro caso, listamos os diretórios do caminho fornecido
         const directoryPath = basePath || (process.platform === 'win32' ? 'C:\\' : '/');
-        const entries = fs.readdirSync(directoryPath, { withFileTypes: true });
+        
+        // Ensure absolute path on Unix systems
+        const absolutePath = (process.platform !== 'win32' && !path.isAbsolute(directoryPath)) 
+            ? path.join('/', directoryPath) 
+            : directoryPath;
+        
+        const entries = fs.readdirSync(absolutePath, { withFileTypes: true });
         
         const directories = [];
         for (const entry of entries) {
             try {
-                const fullPath = path.join(directoryPath, entry.name);
+                const fullPath = path.join(absolutePath, entry.name);
                 const stats = fs.lstatSync(fullPath);
                 
                 // Include directories and symlinks that point to directories
