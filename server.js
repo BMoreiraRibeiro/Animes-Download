@@ -1676,86 +1676,117 @@ async function searchAnimeImage(animeTitle) {
             return animeImagesCache[animeTitle];
         }
         
-        // Formatar o nome para URL
-        const searchTerm = animeTitle.trim()
-                            .toLowerCase()
-                            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                            .replace(/[^\w\s-]/g, '')
-                            .replace(/\s+/g, '-');
-        
-        // Primeiro método: tentar acessar diretamente a página do anime
-    const cleanSearchTerm = searchTerm.replace(/-+$/g, '');
-    const directUrl = `https://animefire.plus/animes/${cleanSearchTerm}-todos-os-episodios`;
-        
-        try {
-            console.log(`Buscando imagem na página direta: ${directUrl}`);
-            const response = await axios.get(directUrl, {
-                headers: { 'User-Agent': USER_AGENT }
-            });
+        // Função auxiliar para gerar variações de URL
+        function generateUrlVariations(title) {
+            const variations = [];
             
-            const $ = cheerio.load(response.data);
+            // Variação 1: Manter apóstrofos e hifens (let-s em vez de lets)
+            const withApostrophe = title.trim()
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/'/g, '-')  // apóstrofo vira hífen
+                .replace(/:/g, '')   // remover dois pontos
+                .replace(/[^\w\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')  // múltiplos hífens viram um só
+                .replace(/-+$/g, ''); // remover hífens finais
+            variations.push(withApostrophe);
             
-            // Check if this is a dubbed anime page - if so, skip it
-            const pageTitle = $('h1.anime-title, h2.anime-title, .anime-title').text().trim();
-            if (pageTitle.includes('(Dublado)')) {
-                console.log(`Skipping dubbed anime page for "${animeTitle}"`);
-                return '';
+            // Variação 2: Remover apóstrofos completamente (lets em vez de let-s)
+            const withoutApostrophe = title.trim()
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/'/g, '')   // remover apóstrofo
+                .replace(/:/g, '')   // remover dois pontos
+                .replace(/[^\w\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/-+$/g, '');
+            if (!variations.includes(withoutApostrophe)) {
+                variations.push(withoutApostrophe);
             }
             
-            // Buscar imagem na página do anime - usando o seletor específico como no exemplo fornecido
-            let imageUrl = '';
-            
-            // Procurar por imagem com classe transitioning_src como no exemplo
-            $('img.transitioning_src').each((index, element) => {
-                const src = $(element).attr('src') || $(element).attr('data-src');
-                const alt = $(element).attr('alt') || '';
-                
-                // Skip if alt text contains "Dublado"
-                if (alt.includes('(Dublado)')) {
-                    return true; // continue to next item
-                }
-                
-                if (src && (src.includes('.webp') || src.includes('.jpg') || src.includes('.png'))) {
-                    imageUrl = src;
-                    return false; // break the each loop
-                }
-            });
-            
-            // Se não encontrou com o seletor específico, busca imagens gerais
-            if (!imageUrl) {
-                // Procurar imagens grandes que pareçam ser capas
-                $('img[alt*="' + animeTitle + '"], img[alt*="Todos os Episódios"]').each((index, element) => {
-                    const src = $(element).attr('src') || $(element).attr('data-src');
-                    if (src && (src.includes('.webp') || src.includes('.jpg') || src.includes('.png'))) {
-                        imageUrl = src;
-                        return false;
-                    }
-                });
+            // Variação 3: Manter dois pontos como hífen
+            const withColon = title.trim()
+                .toLowerCase()
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/'/g, '-')
+                .replace(/:/g, '-')  // dois pontos vira hífen
+                .replace(/[^\w\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/-+$/g, '');
+            if (!variations.includes(withColon)) {
+                variations.push(withColon);
             }
             
-            // Se ainda não encontrou, procurar qualquer imagem grande
-            if (!imageUrl) {
-                $('img[src*="large"], img[src*="cover"], img[data-src*="large"], img[data-src*="cover"]').each((index, element) => {
-                    const src = $(element).attr('src') || $(element).attr('data-src');
-                    if (src) {
-                        imageUrl = src;
-                        return false;
-                    }
-                });
-            }
-            
-            if (imageUrl) {
-                console.log(`Imagem encontrada: ${imageUrl}`);
-                return imageUrl;
-            }
-        } catch (error) {
-            console.log(`Erro ao acessar página direta: ${error.message}`);
+            return variations;
         }
         
-        // Segundo método: tentar buscar via pesquisa
+        const urlVariations = generateUrlVariations(animeTitle);
+        console.log(`[IMAGE SEARCH] Variações de URL para "${animeTitle}":`, urlVariations);
+        
+        // Tentar cada variação até encontrar uma que funcione
+        for (const searchTerm of urlVariations) {
+            const directUrl = `https://animefire.plus/animes/${searchTerm}-todos-os-episodios`;
+            
+            try {
+                console.log(`[IMAGE SEARCH] Tentando: ${directUrl}`);
+                const response = await axios.get(directUrl, {
+                    headers: { 'User-Agent': USER_AGENT },
+                    timeout: 5000
+                });
+                
+                const $ = cheerio.load(response.data);
+                
+                // Check if this is a dubbed anime page - if so, skip it
+                const pageTitle = $('h1.anime-title, h2.anime-title, .anime-title').text().trim();
+                if (pageTitle.includes('(Dublado)')) {
+                    console.log(`[IMAGE SEARCH] Página dublada, pulando...`);
+                    continue; // try next variation
+                }
+                
+                // Buscar imagem na página do anime
+                let imageUrl = '';
+                
+                // Procurar por imagem com classe transitioning_src
+                $('img.transitioning_src').each((index, element) => {
+                    const src = $(element).attr('src') || $(element).attr('data-src');
+                    const alt = $(element).attr('alt') || '';
+                    
+                    // Skip if alt text contains "Dublado"
+                    if (alt.includes('(Dublado)')) {
+                        return true; // continue to next item
+                    }
+                    
+                    if (src && (src.includes('.webp') || src.includes('.jpg') || src.includes('.png'))) {
+                        imageUrl = src;
+                        return false; // break the each loop
+                    }
+                });
+                
+                // Se encontrou imagem, retornar
+                if (imageUrl) {
+                    console.log(`[IMAGE SEARCH] ✓ Imagem encontrada: ${imageUrl}`);
+                    return imageUrl;
+                }
+                
+            } catch (error) {
+                if (error.response && error.response.status === 404) {
+                    console.log(`[IMAGE SEARCH] ✗ 404 - tentando próxima variação...`);
+                    continue; // try next variation
+                }
+                console.log(`[IMAGE SEARCH] Erro ao acessar ${directUrl}: ${error.message}`);
+            }
+        }
+        
+        console.log(`[IMAGE SEARCH] ✗ Nenhuma variação funcionou para "${animeTitle}"`);
+        
+        // Se nenhuma variação funcionou, tentar busca
+        const searchTerm = urlVariations[0]; // usar primeira variação para busca
         const searchUrl = `https://animefire.plus/pesquisar/${encodeURIComponent(searchTerm)}`;
         
-        console.log(`Buscando imagem via pesquisa: ${searchUrl}`);
+        console.log(`[IMAGE SEARCH] Buscando via pesquisa: ${searchUrl}`);
         const response = await axios.get(searchUrl, {
             headers: { 'User-Agent': USER_AGENT }
         });
@@ -1765,21 +1796,20 @@ async function searchAnimeImage(animeTitle) {
         // Try to find image in search results
         let imageUrl = '';
         
-        // Procurar na estrutura de cards, mas pular os que têm "Dublado" no título ou no alt da imagem
+        // Procurar na estrutura de cards, mas pular os que têm "Dublado"
         $('.minWDanime').each((index, element) => {
             const title = $(element).find('.text-block h3.animeTitle').text().trim();
             const img = $(element).find('img');
             const imgSrc = img.attr('src') || img.attr('data-src');
             const imgAlt = img.attr('alt') || '';
             
-            // Skip if it's a dubbed anime (check both title and alt text)
             if (title.includes('(Dublado)') || imgAlt.includes('(Dublado)')) {
-                return true; // continue to next item
+                return true;
             }
             
             if (title && imgSrc && title.toLowerCase().includes(animeTitle.toLowerCase())) {
                 imageUrl = imgSrc;
-                return false; // break the each loop
+                return false;
             }
         });
         
@@ -1791,9 +1821,8 @@ async function searchAnimeImage(animeTitle) {
                 const imgSrc = img.attr('src') || img.attr('data-src');
                 const imgAlt = img.attr('alt') || '';
                 
-                // Skip if it's a dubbed anime (check both title and alt)
                 if (title.includes('(Dublado)') || imgAlt.includes('(Dublado)')) {
-                    return true; // continue to next item
+                    return true;
                 }
                 
                 if (title && imgSrc && title.toLowerCase().includes(animeTitle.toLowerCase())) {
@@ -1803,7 +1832,7 @@ async function searchAnimeImage(animeTitle) {
             });
         }
         
-        console.log(imageUrl ? `Imagem encontrada: ${imageUrl}` : 'Nenhuma imagem encontrada');
+        console.log(imageUrl ? `[IMAGE SEARCH] ✓ Imagem encontrada via busca: ${imageUrl}` : '[IMAGE SEARCH] ✗ Nenhuma imagem encontrada');
         
         return imageUrl || '';
     } catch (error) {
